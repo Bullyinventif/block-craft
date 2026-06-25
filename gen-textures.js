@@ -12,7 +12,8 @@ const TILE_FILES = {
   27:'iron_ore', 28:'furnace_front', 29:'furnace_top', 30:'raw_iron', 31:'iron_ingot',
   32:'cooked_meat', 33:'iron_pickaxe', 34:'iron_shovel', 35:'iron_axe', 36:'snow',
   37:'gravel', 38:'cactus_side', 39:'cactus_top',
-  40:'mossy_cobblestone', 41:'bookshelf_side', 42:'gold_ore', 43:'raw_gold', 44:'gold_ingot'
+  40:'mossy_cobblestone', 41:'bookshelf_side', 42:'gold_ore', 43:'raw_gold', 44:'gold_ingot',
+  45:'ladder', 46:'door_lower', 47:'door_upper', 48:'chest_top', 49:'chest_side'
 };
 
 function lerp(a,b,t){ return a+t*(b-a); }
@@ -355,6 +356,56 @@ paint(44,(x,y)=>{
   const shine=x>=T/2-2&&x<=T/2+2&&y>=13&&y<=20;
   if(shine) return [255,248,172];
   return mix([224,184,34],[246,210,66],fn2(x/5,y/5,54));
+});
+
+// ── 45: échelle (transparent entre les barreaux) ─────────────
+paint(45,(x,y)=>{
+  const rail=(x>=4&&x<=7)||(x>=T-8&&x<=T-5);
+  const rung=(y%9<3)&&x>7&&x<T-8;
+  if(rail||rung) return mix([150,104,52],[120,80,40],fn2(x/3,y/3,45));
+  return null;
+});
+
+// ── 46: porte (bas) ──────────────────────────────────────────
+paint(46,(x,y)=>{
+  if(x<2||x>=T-2) return [66,44,22];                 // cadre
+  const panel=mix([170,126,72],[142,102,56],fn2(x/9,y/7,46));
+  if(Math.abs(x-T/2)<1) return [98,68,36];           // séparation des deux battants
+  if(y<3||y>=T-3) return [98,68,36];                  // bords haut/bas
+  if(Math.abs(x-(T-8))<2&&Math.abs(y-T/2)<3) return [46,46,52];  // poignée
+  return panel;
+});
+
+// ── 47: porte (haut, avec fenêtre) ──────────────────────────
+paint(47,(x,y)=>{
+  if(x<2||x>=T-2) return [66,44,22];
+  const panel=mix([170,126,72],[142,102,56],fn2(x/9,y/7,47));
+  if(Math.abs(x-T/2)<1) return [98,68,36];
+  if(y<3||y>=T-3) return [98,68,36];
+  if(x>=6&&x<=T-7&&y>=7&&y<=16){                       // fenêtre vitrée
+    if((x-6)%5<1||(y-7)%5<1) return [98,68,36];        // croisillons
+    return mix([150,196,220],[186,222,238],fn2(x/4,y/4,71));
+  }
+  return panel;
+});
+
+// ── 48: coffre (dessus) ──────────────────────────────────────
+paint(48,(x,y)=>{
+  if(x<2||y<2||x>=T-2||y>=T-2) return [86,58,30];               // bord
+  const wood=mix([162,116,62],[136,96,50],fn2(x/9,y/5,48));
+  if(y<6) return mix([122,86,46],[102,70,38],fn2(x/4,y/3,48));   // bande avant (charnière)
+  if(Math.abs(x-T/2)<3&&y<5) return [64,64,70];                  // ferrure de la charnière
+  return wood;
+});
+
+// ── 49: coffre (côté/avant) ─────────────────────────────────
+paint(49,(x,y)=>{
+  if(x<2||x>=T-2) return [72,48,24];                             // bords verticaux
+  if(y<3||y>=T-3) return [98,68,36];                             // bandes haut/bas
+  const wood=mix([162,116,62],[136,96,50],fn2(x/8,y/6,49));
+  if(Math.abs(x-T/2)<4&&y>=T*0.42&&y<=T*0.62) return mix([78,78,86],[126,126,134],fn2(x/3,y/3,72)); // ferrure
+  if(Math.abs(x-T/2)<2&&Math.abs(y-T*0.58)<2) return [38,38,44]; // serrure
+  return wood;
 });
 
 // ──────────────────────────────────────────────────────────────
