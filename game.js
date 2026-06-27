@@ -26,147 +26,34 @@ let difficulty=settings.difficulty||'normal';   // 'normal' | 'peaceful'
 let skyDay=1;   // facteur jour (0=nuit, 1=plein jour), maj par updateSky
 function saveSettings(){ try{ localStorage.setItem('minicraft_settings',JSON.stringify({soundOn,soundVol,sens:mouseSens,render:R,fov:FOV,difficulty})); }catch(e){} }
 
-// ---------- Blocs et objets ----------
-const AIR=0, GRASS=1, DIRT=2, STONE=3, COBBLE=4, SAND=5, WOOD=6, LEAVES=7, PLANKS=8,
-      WATER=9, BRICK=10, GLASS=11, BEDROCK=12, TORCH=13, COAL_ORE=14, CRAFT_TABLE=15,
-      IRON_ORE=16, FURNACE=17, SNOW=18, CACTUS=19;
-const GRAVEL=20, MOSSY_COBBLE=21, BOOKSHELF=22, GOLD_ORE=23, LADDER=24, DOOR=25, DOOR_OPEN=26, CHEST=27;
-const STICK=100, COAL=101, WOOD_PICK=102, WOOD_SHOVEL=103, WOOD_AXE=104,
-      STONE_PICK=105, STONE_SHOVEL=106, STONE_AXE=107, VIANDE=110,
-      IRON_RAW=111, IRON_INGOT=112, VIANDE_CUITE=113, IRON_PICK=114, IRON_SHOVEL=115, IRON_AXE=116,
-      GOLD_RAW=117, GOLD_INGOT=118;
-
-const BLOCKS={
-  [GRASS]:{name:'Herbe',top:0,side:1,bottom:2}, [DIRT]:{name:'Terre',top:2,side:2,bottom:2},
-  [STONE]:{name:'Pierre',top:3,side:3,bottom:3}, [COBBLE]:{name:'Pavé',top:4,side:4,bottom:4},
-  [SAND]:{name:'Sable',top:5,side:5,bottom:5}, [WOOD]:{name:'Bois',top:6,side:7,bottom:6},
-  [LEAVES]:{name:'Feuilles',top:8,side:8,bottom:8}, [PLANKS]:{name:'Planches',top:9,side:9,bottom:9},
-  [WATER]:{name:'Eau',top:10,side:10,bottom:10,transparent:true,fluid:true},
-  [BRICK]:{name:'Brique',top:11,side:11,bottom:11}, [GLASS]:{name:'Verre',top:12,side:12,bottom:12,transparent:true},
-  [BEDROCK]:{name:'Bedrock',top:13,side:13,bottom:13},
-  [TORCH]:{name:'Torche',top:14,side:14,bottom:14,transparent:true,noCube:true,light:TORCH_LIGHT},
-  [COAL_ORE]:{name:'Minerai de charbon',top:15,side:15,bottom:15},
-  [CRAFT_TABLE]:{name:'Établi',top:16,side:17,bottom:9},
-  [IRON_ORE]:{name:'Minerai de fer',top:27,side:27,bottom:27},
-  [FURNACE]:{name:'Four',top:29,side:28,bottom:29},
-  [SNOW]:{name:'Neige',top:36,side:36,bottom:36}, [CACTUS]:{name:'Cactus',top:39,side:38,bottom:39},
-  [GRAVEL]:{name:'Gravier',top:37,side:37,bottom:37},
-  [MOSSY_COBBLE]:{name:'Pavé moussu',top:40,side:40,bottom:40},
-  [BOOKSHELF]:{name:'Bibliothèque',top:9,side:41,bottom:9},
-  [GOLD_ORE]:{name:'Minerai d\'or',top:42,side:42,bottom:42},
-  [LADDER]:{name:'Échelle',top:45,side:45,bottom:45,transparent:true,noCube:true},
-  [DOOR]:{name:'Porte',top:47,side:46,bottom:46,transparent:true,noCube:true},
-  [DOOR_OPEN]:{name:'Porte ouverte',top:47,side:46,bottom:46,transparent:true,noCube:true},
-  [CHEST]:{name:'Coffre',top:48,side:49,bottom:48},
-  [STICK]:{name:'Bâton',side:19,item:true}, [COAL]:{name:'Charbon',side:18,item:true},
-  [WOOD_PICK]:{name:'Pioche en bois',side:20,item:true,maxStack:1},
-  [WOOD_SHOVEL]:{name:'Pelle en bois',side:21,item:true,maxStack:1},
-  [WOOD_AXE]:{name:'Hache en bois',side:22,item:true,maxStack:1},
-  [STONE_PICK]:{name:'Pioche en pierre',side:23,item:true,maxStack:1},
-  [STONE_SHOVEL]:{name:'Pelle en pierre',side:24,item:true,maxStack:1},
-  [STONE_AXE]:{name:'Hache en pierre',side:25,item:true,maxStack:1},
-  [VIANDE]:{name:'Viande crue',side:26,item:true},
-  [IRON_RAW]:{name:'Fer brut',side:30,item:true}, [IRON_INGOT]:{name:'Lingot de fer',side:31,item:true},
-  [VIANDE_CUITE]:{name:'Viande cuite',side:32,item:true},
-  [IRON_PICK]:{name:'Pioche en fer',side:33,item:true,maxStack:1},
-  [IRON_SHOVEL]:{name:'Pelle en fer',side:34,item:true,maxStack:1},
-  [IRON_AXE]:{name:'Hache en fer',side:35,item:true,maxStack:1},
-  [GOLD_RAW]:{name:'Or brut',side:43,item:true},
-  [GOLD_INGOT]:{name:'Lingot d\'or',side:44,item:true},
-};
-const HARD={ [GRASS]:0.4,[DIRT]:0.4,[SAND]:0.45,[LEAVES]:0.2,[WOOD]:0.7,[PLANKS]:0.7,
-  [STONE]:1.3,[COBBLE]:1.3,[BRICK]:1.3,[GLASS]:0.3,[TORCH]:0.1,[COAL_ORE]:1.6,[CRAFT_TABLE]:0.7,
-  [IRON_ORE]:2.2,[FURNACE]:1.6,[SNOW]:0.25,[CACTUS]:0.4,[WATER]:9999,[BEDROCK]:9999,
-  [GRAVEL]:0.4,[MOSSY_COBBLE]:1.3,[BOOKSHELF]:0.7,[GOLD_ORE]:2.4,[LADDER]:0.3,[DOOR]:0.7,[DOOR_OPEN]:0.7,[CHEST]:1.0 };
-const DROPS={ [STONE]:COBBLE,[GRASS]:DIRT,[COAL_ORE]:COAL,[IRON_ORE]:IRON_RAW,[GOLD_ORE]:GOLD_RAW,[MOSSY_COBBLE]:COBBLE,[DOOR_OPEN]:DOOR };
+// ---------- Données du jeu ----------
+// Tout (blocs, objets, recettes, textures) est défini dans blocks.js (chargé avant game.js).
+// blocks.js expose en global : les ids (AIR, GRASS, …), BLOCKS, HARD, DROPS, BLOCK_TOOL,
+// TOOL, SMELT, FUEL, EAT, RECIPES, TILE_FILES, ATLAS_TILES.
 const dropOf=id=>DROPS[id]!=null?DROPS[id]:id;
 const maxStackOf=id=>(BLOCKS[id]&&BLOCKS[id].maxStack)||STACK;
-const TOOL={ [WOOD_PICK]:{k:'pick',m:2.5},[STONE_PICK]:{k:'pick',m:4.5},[IRON_PICK]:{k:'pick',m:7},
-  [WOOD_SHOVEL]:{k:'shovel',m:2.5},[STONE_SHOVEL]:{k:'shovel',m:4.5},[IRON_SHOVEL]:{k:'shovel',m:7},
-  [WOOD_AXE]:{k:'axe',m:2.5},[STONE_AXE]:{k:'axe',m:4.5},[IRON_AXE]:{k:'axe',m:7} };
-const BLOCK_TOOL={ [STONE]:'pick',[COBBLE]:'pick',[COAL_ORE]:'pick',[IRON_ORE]:'pick',[BRICK]:'pick',[FURNACE]:'pick',
-  [MOSSY_COBBLE]:'pick',[GOLD_ORE]:'pick',
-  [WOOD]:'axe',[PLANKS]:'axe',[CRAFT_TABLE]:'axe',[CACTUS]:'axe',[BOOKSHELF]:'axe',[LADDER]:'axe',[DOOR]:'axe',[DOOR_OPEN]:'axe',[CHEST]:'axe',
-  [DIRT]:'shovel',[GRASS]:'shovel',[SAND]:'shovel',[SNOW]:'shovel',[GRAVEL]:'shovel' };
 function mineMult(id){ const h=inv[selected]; if(!h) return 1; const t=TOOL[h.id]; if(!t) return 1; return BLOCK_TOOL[id]===t.k?t.m:1; }
-const SMELT={ [IRON_RAW]:IRON_INGOT, [GOLD_RAW]:GOLD_INGOT, [VIANDE]:VIANDE_CUITE, [SAND]:GLASS, [COBBLE]:STONE };
-const FUEL={ [COAL]:8, [PLANKS]:2, [WOOD]:2, [STICK]:1 };
-const EAT={ [VIANDE]:4, [VIANDE_CUITE]:8 };
-
-const isTransparent=id=>id!==AIR&&BLOCKS[id]&&BLOCKS[id].transparent;
+// prédicats dérivés des drapeaux des blocs
+const isTransparent=id=>id!==AIR&&!!(BLOCKS[id]&&BLOCKS[id].transparent);
 const isOpaque=id=>id!==AIR&&!(BLOCKS[id]&&BLOCKS[id].transparent);
-const isSolid=id=>id!==AIR&&id!==WATER&&id!==TORCH&&id!==LADDER&&id!==DOOR_OPEN;
+function isSolid(id){ if(id===AIR) return false; const b=BLOCKS[id]; if(!b||b.fluid) return false; if(b.solid===false) return false; if(b.noCube&&!b.solid) return false; return true; }
 
-// ---------- Atlas de textures (procédural, remplaçable par atlas.png) ----------
-const TILE=16, ATLAS_TILES=8, ATLAS_PX=TILE*ATLAS_TILES;
+// ---------- Atlas de textures ----------
+// Construit dynamiquement depuis TILE_FILES (défini par blocks.js d'après les noms de fichiers).
+// Chaque tuile est remplie par son PNG (window.TEX base64, sinon assets/<nom>.png).
+const TILE=16, ATLAS_TILES=window.ATLAS_TILES||8, ATLAS_PX=TILE*ATLAS_TILES;
 const atlas=document.createElement('canvas'); atlas.width=atlas.height=ATLAS_PX;
 const actx=atlas.getContext('2d');
-function lerp(a,b,t){ return a+t*(b-a); }
-function mix(c1,c2,t){ return [lerp(c1[0],c2[0],t),lerp(c1[1],c2[1],t),lerp(c1[2],c2[2],t),c1[3]]; }
-function vn(x,y,seed){ const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
-  const h=(a,b)=>{ let n=(Math.imul(a,374761393)^Math.imul(b,668265263)^Math.imul(seed,2246822519))|0; n=Math.imul(n^(n>>>13),1274126177); return ((n^(n>>>16))>>>0)/4294967295; };
-  const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
-  return lerp(lerp(h(xi,yi),h(xi+1,yi),u),lerp(h(xi,yi+1),h(xi+1,yi+1),u),v); }
-function fnoise(x,y,s){ return 0.6*vn(x,y,s)+0.3*vn(x*2+5,y*2+5,s+1)+0.1*vn(x*4,y*4,s+2); }
-function paint(t,fn){ const col=t%ATLAS_TILES,row=(t/ATLAS_TILES)|0,ox=col*TILE,oy=row*TILE; actx.clearRect(ox,oy,TILE,TILE);
-  for(let y=0;y<TILE;y++) for(let x=0;x<TILE;x++){ const c=fn(x,y); if(!c) continue;
-    actx.fillStyle=(c[3]==null)?`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`:`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${c[3]})`; actx.fillRect(ox+x,oy+y,1,1); } }
-paint(0,(x,y)=>mix([100,156,58],[124,178,74],fnoise(x/7,y/7,1)));
-paint(1,(x,y)=>{ const e=9+Math.round((fnoise(x/9,0,2)-0.5)*6); return y<e?mix([100,156,58],[124,178,74],fnoise(x/7,y/7,1)):mix([122,86,58],[152,112,80],fnoise(x/7,y/7,3)); });
-paint(2,(x,y)=>mix([122,86,58],[152,112,80],fnoise(x/7,y/7,3)));
-paint(3,(x,y)=>mix([124,126,131],[152,154,159],fnoise(x/8,y/8,4)));
-paint(4,(x,y)=>{ const cx=(x%16)-8,cy=(y%16)-8,d=Math.min(1,Math.sqrt(cx*cx+cy*cy)/8.5); const b=mix([116,116,122],[146,148,153],fnoise(x/5,y/5,5)); if(d>0.92) return [78,78,84]; const s=1-d*0.3; return [b[0]*s,b[1]*s,b[2]*s]; });
-paint(5,(x,y)=>mix([220,210,162],[238,230,190],fnoise(x/7,y/7,6)));
-paint(6,(x,y)=>{ const dx=x-16,dy=y-16,d=Math.sqrt(dx*dx+dy*dy),r=Math.sin(d*1.05)*0.5+0.5; return mix([150,112,66],[120,86,48],r*0.7+fnoise(x/6,y/6,7)*0.2); });
-paint(7,(x,y)=>{ const g=Math.sin(x*0.85+fnoise(x/9,y/9,8)*2.2)*0.5+0.5; return mix([140,102,60],[110,78,46],g*0.55); });
-paint(8,(x,y)=>mix([58,116,44],[92,156,68],fnoise(x/4.5,y/4.5,9)));
-paint(9,(x,y)=>{ const p=Math.floor(y/8),s=(y%8<1)?0.72:1,vs=((x+(p%2)*16)%16<1)?0.82:1; const c=mix([172,136,82],[150,116,68],fnoise(x/8,y/3,10+p)*0.7); return [c[0]*s*vs,c[1]*s*vs,c[2]*s*vs]; });
-paint(10,(x,y)=>{ const w=Math.sin((x+y)*0.35+fnoise(x/6,y/6,11)*3)*0.5+0.5; const c=mix([46,110,200],[64,142,226],w); return [c[0],c[1],c[2],0.72]; });
-paint(11,(x,y)=>{ const row=Math.floor(y/8),off=(row%2)*8; if(y%8<1||(x+off)%16<1) return [206,201,191]; return mix([162,68,54],[180,86,68],fnoise(x/6,y/6,12)); });
-paint(12,(x,y)=>{ if(x<2||y<2||x>=TILE-2||y>=TILE-2) return [216,239,246,0.95]; return [182,222,239,((x+y)%18<2)?0.32:0.12]; });
-paint(13,(x,y)=>mix([40,40,46],[72,72,80],fnoise(x/5,y/5,13)));
-paint(14,(x,y)=>{ const cx=TILE/2; if(x>=cx-2&&x<=cx+1&&y>=TILE*0.45) return [120,80,45]; const dx=x-cx,dy=y-TILE*0.32; if(dx*dx+dy*dy<26) return mix([255,176,40],[255,232,120],fnoise(x/3,y/3,14)); return null; });
-paint(15,(x,y)=>{ const base=mix([124,126,131],[152,154,159],fnoise(x/8,y/8,4)); return fnoise(x/4,y/4,30)>0.6?[30,30,34]:base; });
-paint(16,(x,y)=>{ const base=mix([176,140,86],[150,116,68],fnoise(x/8,y/8,40)); if(x<2||y<2||x>=TILE-2||y>=TILE-2||Math.abs(x-TILE/2)<1||Math.abs(y-TILE/2)<1) return [95,68,40]; return base; });
-paint(17,(x,y)=>{ const base=mix([150,116,68],[128,98,56],fnoise(x/8,y/4,41)); if(y>=TILE*0.5&&y<TILE*0.5+2) return [70,70,76]; return base; });
-paint(18,(x,y)=>{ const dx=x-TILE/2,dy=y-TILE/2,d=Math.sqrt(dx*dx+dy*dy)/(TILE*0.4); if(d>1) return null; return mix([20,20,24],[64,64,70],fnoise(x/3,y/3,42)*(1-d*0.6)); });
-paint(19,(x,y)=>{ const cx=TILE/2; if(x>=cx-2&&x<=cx+2&&y>=4&&y<=TILE-4) return mix([120,84,46],[150,110,66],fnoise(x/2,y/4,43)); return null; });
-function thandle(x,y){ return (x>=14&&x<=17&&y>=8&&y<=28)?[120,82,44]:null; }
-const tpick=hc=>(x,y)=>{ const h=thandle(x,y); if(h) return h; if(y>=5&&y<=8&&x>=6&&x<=25) return hc; if((x<=8||x>=23)&&x>=6&&x<=25&&y>=8&&y<=12) return hc; return null; };
-const tshovel=hc=>(x,y)=>{ const h=thandle(x,y); if(h) return h; if(x>=10&&x<=21&&y>=4&&y<=11) return hc; return null; };
-const taxe=hc=>(x,y)=>{ const h=thandle(x,y); if(h) return h; if(x>=16&&x<=26&&y>=4&&y<=13&&((x-16)+(13-y)<13)) return hc; return null; };
-const WHEAD=[196,158,100], SHEAD=[130,130,136], IHEAD=[226,226,232];
-paint(20,tpick(WHEAD)); paint(21,tshovel(WHEAD)); paint(22,taxe(WHEAD));
-paint(23,tpick(SHEAD)); paint(24,tshovel(SHEAD)); paint(25,taxe(SHEAD));
-paint(26,(x,y)=>{ const dx=x-TILE/2,dy=y-TILE/2,d=Math.sqrt(dx*dx+dy*dy)/(TILE*0.42); if(d>1) return null; return mix([184,74,72],[150,40,40],fnoise(x/3,y/3,50)*(1-d*0.5)); });
-paint(27,(x,y)=>{ const base=mix([124,126,131],[152,154,159],fnoise(x/8,y/8,4)); return fnoise(x/4+9,y/4,31)>0.62?[214,176,140]:base; });   // minerai de fer
-paint(28,(x,y)=>{ const base=mix([96,96,100],[122,122,128],fnoise(x/6,y/6,32)); if(x>=8&&x<=23&&y>=14&&y<=27){ const g=(y>24)?[255,150,40]:[30,24,20]; return g; } return base; }); // four (face)
-paint(29,(x,y)=>mix([96,96,100],[122,122,128],fnoise(x/6,y/6,32)));   // four (dessus/dessous)
-paint(30,(x,y)=>{ const dx=x-TILE/2,dy=y-TILE/2,d=Math.sqrt(dx*dx+dy*dy)/(TILE*0.4); if(d>1) return null; const n=fnoise(x/3,y/3,33); return n>0.6?mix([210,172,138],[230,196,160],n):mix([120,118,120],[150,148,150],n); }); // fer brut
-paint(31,(x,y)=>{ if(x<6||x>25||y<11||y>20) return null; return mix([210,210,218],[236,236,242],fnoise(x/4,y/4,34)); });  // lingot de fer
-paint(32,(x,y)=>{ const dx=x-TILE/2,dy=y-TILE/2,d=Math.sqrt(dx*dx+dy*dy)/(TILE*0.42); if(d>1) return null; return mix([150,96,56],[120,70,40],fnoise(x/3,y/3,35)*(1-d*0.4)); }); // viande cuite
-paint(33,tpick(IHEAD)); paint(34,tshovel(IHEAD)); paint(35,taxe(IHEAD));
-paint(36,(x,y)=>mix([232,238,245],[255,255,255],fnoise(x/6,y/6,60)));   // neige
-paint(38,(x,y)=>{ const r=(x%8<1)?0.78:1; const c=mix([60,120,52],[84,150,70],fnoise(x/6,y/4,61)); return [c[0]*r,c[1]*r,c[2]*r]; });  // cactus (côté)
-paint(39,(x,y)=>mix([70,134,60],[96,164,80],fnoise(x/5,y/5,62)));   // cactus (dessus)
+actx.fillStyle='#c026c0'; actx.fillRect(0,0,ATLAS_PX,ATLAS_PX);   // magenta = texture manquante (le temps du chargement)
 
 const texture=new THREE.CanvasTexture(atlas);
 texture.magFilter=THREE.NearestFilter; texture.minFilter=THREE.NearestFilter; texture.generateMipmaps=false;
 function tileUV(t){ const s=1/ATLAS_TILES,col=t%ATLAS_TILES,row=(t/ATLAS_TILES)|0,ins=0.5/ATLAS_PX; return [col*s+ins,1-(row+1)*s+ins,(col+1)*s-ins,1-row*s-ins]; }
-// textures : un fichier 16x16 par tuile dans assets/ (écrase le procédural si présent)
-const TILE_FILES={
-  0:'grass_top',1:'grass_side',2:'dirt',3:'stone',4:'cobblestone',5:'sand',6:'wood_top',7:'wood_side',
-  8:'leaves',9:'planks',10:'water',11:'brick',12:'glass',13:'bedrock',14:'torch',15:'coal_ore',
-  16:'craft_table_top',17:'craft_table_side',18:'coal',19:'stick',20:'wood_pickaxe',21:'wood_shovel',22:'wood_axe',23:'stone_pickaxe',
-  24:'stone_shovel',25:'stone_axe',26:'raw_meat',27:'iron_ore',28:'furnace_front',29:'furnace_top',30:'raw_iron',31:'iron_ingot',
-  32:'cooked_meat',33:'iron_pickaxe',34:'iron_shovel',35:'iron_axe',36:'snow',37:'gravel',38:'cactus_side',39:'cactus_top',
-  40:'mossy_cobblestone',41:'bookshelf_side',42:'gold_ore',43:'raw_gold',44:'gold_ingot',
-  45:'ladder',46:'door_lower',47:'door_upper',48:'chest_top',49:'chest_side'
-};
+// TILE_FILES (tuile→nom de fichier) est fourni par blocks.js d'après les textures référencées.
 let _assetsLeft=Object.keys(TILE_FILES).length;
 function finishAssets(){ texture.needsUpdate=true; for(const c of chunks.values()) c.dirty=true; renderHotbar(); if(invOpen) renderInvScreen(); }
 // Textures intégrées (textures.js, base64) : aucun fichier externe → marche en double-clic
-// et dans Bubble, sans serveur. Repli sur assets/ ou le procédural si textures.js est absent.
+// et dans Bubble, sans serveur. Repli sur assets/<nom>.png si textures.js est absent.
 (function loadAssets(){
   for(const t in TILE_FILES){ const tile=+t, name=TILE_FILES[tile], img=new Image();
     img.onload=()=>{ const col=tile%ATLAS_TILES,row=(tile/ATLAS_TILES)|0; actx.clearRect(col*TILE,row*TILE,TILE,TILE); actx.imageSmoothingEnabled=false; actx.drawImage(img,col*TILE,row*TILE,TILE,TILE); if(--_assetsLeft<=0) finishAssets(); };
@@ -248,7 +135,8 @@ function makePerlin(seed){ const perm=[]; for(let i=0;i<256;i++) perm[i]=i;
     return L(L(grad(aa,x,y),grad(ba,x-1,y),u),L(grad(ab,x,y-1),grad(bb,x-1,y-1),u),v); }; }
 const perlin=makePerlin(SEED);
 function fbm(x,z){ let a=0,amp=1,fr=0.012,n=0; for(let i=0;i<4;i++){ a+=perlin(x*fr,z*fr)*amp; n+=amp; amp*=0.5; fr*=2; } return a/n; }
-function heightAt(x,z){ return Math.floor(24+fbm(x,z)*11); }
+function elevAt(x,z){ return perlin(x*0.0035+900,z*0.0035+900); }   // bruit d'élévation (montagnes)
+function heightAt(x,z){ let hgt=24+fbm(x,z)*11; const e=elevAt(x,z); if(e>0.42) hgt+=(e-0.42)*46; return Math.floor(Math.min(HEIGHT-4,hgt)); }
 function hash2(x,z){ let n=(x*374761393+z*668265263)|0; n=(n^(n>>13))*1274126177; n=n^(n>>16); return (n>>>0)/4294967295; }
 function hash3(x,y,z){ let n=(x*374761393+y*668265263+z*1103515245)|0; n=(n^(n>>13))*1274126177; n=n^(n>>16); return (n>>>0)/4294967295; }
 function noise3(x,y,z){ const xi=Math.floor(x),yi=Math.floor(y),zi=Math.floor(z),xf=x-xi,yf=y-yi,zf=z-zi;
@@ -269,7 +157,7 @@ function setBlock(wx,wy,wz,id){ if(wy<0||wy>=HEIGHT) return; const cx=Math.floor
 function editBlock(wx,wy,wz,id){ const prev=getBlock(wx,wy,wz); setBlock(wx,wy,wz,id);
   const cx=Math.floor(wx/CHUNK),cz=Math.floor(wz/CHUNK),k=ckey(cx,cz); (worldEdits[k]||(worldEdits[k]={}))[(wx-cx*CHUNK)+','+wy+','+(wz-cz*CHUNK)]=id;
   const tk=wx+','+wy+','+wz; if(prev===TORCH) torches.delete(tk); if(id===TORCH) torches.add(tk);
-  if(id===AIR){ activateWater(wx,wy,wz); const ab=getBlock(wx,wy+1,wz); if(ab===SAND||ab===GRAVEL) startFall(wx,wy+1,wz,ab); }
+  if(id===AIR){ activateWater(wx,wy,wz); const ab=getBlock(wx,wy+1,wz); if(BLOCKS[ab]&&BLOCKS[ab].fall) startFall(wx,wy+1,wz,ab); }
   scheduleSave(); }
 
 // ---------- Eau qui coule (propagation) ----------
@@ -286,14 +174,51 @@ function flowTick(){ let budget=24;
     if(getBlock(c[0],c[1]-1,c[2])===AIR) spreadWater(c[0],c[1]-1,c[2],0);
     else if(lvl<7){ spreadWater(c[0]+1,c[1],c[2],lvl+1); spreadWater(c[0]-1,c[1],c[2],lvl+1); spreadWater(c[0],c[1],c[2]+1,lvl+1); spreadWater(c[0],c[1],c[2]-1,lvl+1); } } }
 
-function plantTree(blocks,lx,baseY,lz){ const th=4+(hash2(lx*7+baseY,lz*13)*3|0);
-  for(let i=0;i<th;i++){ const y=baseY+i; if(y<HEIGHT) blocks[vidx(lx,y,lz)]=WOOD; }
+function plantTree(blocks,lx,baseY,lz,logId,leafId,height){ const th=height||(4+(hash2(lx*7+baseY,lz*13)*3|0));
+  logId=logId||WOOD; leafId=leafId||LEAVES;
+  for(let i=0;i<th;i++){ const y=baseY+i; if(y<HEIGHT) blocks[vidx(lx,y,lz)]=logId; }
   const top=baseY+th-1;
   for(let dy=-1;dy<=2;dy++) for(let dx=-2;dx<=2;dx++) for(let dz=-2;dz<=2;dz++){ const x=lx+dx,y=top+dy,z=lz+dz;
-    if(x<0||x>=CHUNK||z<0||z>=CHUNK||y<0||y>=HEIGHT) continue; if(Math.abs(dx)+Math.abs(dy)+Math.abs(dz)<=3&&blocks[vidx(x,y,z)]===AIR) blocks[vidx(x,y,z)]=LEAVES; } }
-// biomes : neige / désert / forêt / plaines (bruit lent)
-function biomeAt(x,z){ const t=perlin(x*0.0045+100,z*0.0045+100),hum=perlin(x*0.006+555,z*0.006+555);
-  if(t<-0.32) return 'snow'; if(t>0.30&&hum<0.05) return 'desert'; if(hum>0.16) return 'forest'; return 'plains'; }
+    if(x<0||x>=CHUNK||z<0||z>=CHUNK||y<0||y>=HEIGHT) continue; if(Math.abs(dx)+Math.abs(dy)+Math.abs(dz)<=3&&blocks[vidx(x,y,z)]===AIR) blocks[vidx(x,y,z)]=leafId; } }
+
+// ---------- Biomes (température × humidité × élévation) ----------
+function biomeAt(x,z){
+  if(elevAt(x,z)>0.52) return 'mountains';
+  const t=perlin(x*0.004+100,z*0.004+100)+0.4*perlin(x*0.013+30,z*0.013+30);   // température
+  const h=perlin(x*0.005+555,z*0.005+555)+0.4*perlin(x*0.015+8,z*0.015+8);     // humidité
+  if(t<-0.35) return h>0.05?'taiga':'snow';                                     // froid
+  if(t>0.42)  return h<-0.05?'desert':(h>0.30?'jungle':'mesa');                 // chaud
+  if(t>0.12)  return h<-0.10?'savanna':(h>0.34?'jungle':'plains');             // tiède
+  if(h>0.42)  return 'swamp';                                                   // tempéré humide
+  if(h>0.04)  return 'forest';
+  return 'plains';
+}
+// roche : pierre + filons d'andésite/granite/diorite
+function stoneVariant(wx,y,wz){ const v=noise3(wx*0.06+5,y*0.06,wz*0.06+5)+0.5;   // noise3 ici ~[-1,0] → recentré
+  if(v>0.26) return ANDESITE; if(v<-0.26) return GRANITE;
+  if(noise3(wx*0.06+60,y*0.06+9,wz*0.06+60)+0.5>0.30) return DIORITE; return STONE; }
+// minerai à une profondeur donnée (-1 = pas de minerai)
+function oreAt(wx,y,wz,h,bi){
+  if(y<=6 && hash3(wx*5+1,y,wz*5+1)<0.0010) return OBSIDIAN;
+  if(y<=8 && hash3(wx*7+3,y,wz*7+3)<0.0016) return DIAMOND_ORE;
+  if(bi==='mountains' && hash3(wx*9+2,y,wz*9+2)<0.0022) return EMERALD_ORE;
+  if(y<=18 && hash3(wx*4+11,y,wz*4+11)<0.0035) return LAPIS_ORE;
+  if(y<=15 && hash3(wx*6+13,y,wz*6+13)<0.006) return REDSTONE_ORE;
+  if(y<=9 && hash3(wx*3+5,y,wz*3+5)<0.003) return GOLD_ORE;
+  if(y>1&&y<h-6 && hash3(wx*2+7,y,wz*2+7)<0.006) return IRON_ORE;
+  if(y>2 && hash3(wx,y,wz)<0.02) return COAL_ORE;
+  if(y>h-9 && hash3(wx+51,y+7,wz+51)<0.04) return GRAVEL;
+  return -1;
+}
+// arbre & densité selon le biome
+function treeOf(bi,wx,wz){
+  if(bi==='taiga'||bi==='snow'||bi==='mountains') return [SPRUCE_LOG,SPRUCE_LEAVES];
+  if(bi==='savanna') return [ACACIA_LOG,ACACIA_LEAVES];
+  if(bi==='jungle')  return [JUNGLE_LOG,JUNGLE_LEAVES];
+  if(bi==='forest')  return hash2(wx*9+1,wz*9+1)<0.4?[BIRCH_LOG,BIRCH_LEAVES]:[WOOD,LEAVES];
+  return [WOOD,LEAVES];   // plaines, marais
+}
+function treeDensity(bi){ return bi==='jungle'?0.11:bi==='forest'?0.085:bi==='taiga'?0.06:bi==='swamp'?0.04:bi==='savanna'?0.016:bi==='snow'?0.02:bi==='mountains'?0.008:0.012; }
 // structures
 function setL(blocks,lx,y,lz,id){ if(lx<0||lx>=CHUNK||lz<0||lz>=CHUNK||y<0||y>=HEIGHT) return; blocks[vidx(lx,y,lz)]=id; }
 function buildHut(blocks,lx,gy,lz){
@@ -339,31 +264,49 @@ function genChunk(cx,cz){
   for(let lx=0;lx<CHUNK;lx++) for(let lz=0;lz<CHUNK;lz++){ const wx=cx*CHUNK+lx,wz=cz*CHUNK+lz,h=heightAt(wx,wz),bi=biomeAt(wx,wz);
     for(let y=0;y<HEIGHT;y++){ let id=AIR;
       if(y===0) id=BEDROCK;
-      else if(y<h-3){
-        if(y<=9&&hash3(wx*3+5,y,wz*3+5)<0.004) id=GOLD_ORE;
-        else if(y>1&&y<h-6&&hash3(wx*2+7,y,wz*2+7)<0.006) id=IRON_ORE;
-        else if(y>2&&hash3(wx,y,wz)<0.02) id=COAL_ORE;
-        else if(y>h-9&&hash3(wx+51,y+7,wz+51)<0.04) id=GRAVEL;
-        else id=STONE;
+      else if(y<h-3){                              // sous-sol profond
+        if(bi==='desert'&&y>=h-7) id=SANDSTONE;
+        else if(bi==='mesa'&&y>=h-7) id=(y>=h-5?TERRACOTTA:RED_SANDSTONE);
+        else { const o=oreAt(wx,y,wz,h,bi); id=(o>=0)?o:stoneVariant(wx,y,wz); }
       }
-      else if(y<h) id=(bi==='desert'&&y>=h-4)?SAND:DIRT;
-      else if(y===h) id=(h<=SEA+1)?SAND:(bi==='desert')?SAND:(bi==='snow')?SNOW:GRASS;
-      else if(y<=SEA) id=WATER;
+      else if(y<h){                                // sous-surface (h-3..h-1)
+        id=(h<=SEA+1)?SAND:(bi==='desert')?SAND:(bi==='mesa')?TERRACOTTA:(bi==='mountains'&&h>=37)?STONE:DIRT;
+      }
+      else if(y===h){                              // surface
+        if(h<=SEA+1) id=SAND;
+        else if(bi==='desert') id=SAND;
+        else if(bi==='mesa') id=RED_SAND;
+        else if(bi==='snow') id=SNOW;
+        else if(bi==='mountains') id=(h>=41?SNOW:(h>=37?STONE:GRASS));
+        else if(bi==='taiga') id=(hash2(wx*2+3,wz*2+3)<0.28?PODZOL:GRASS);
+        else id=GRASS;
+      }
+      else if(y<=SEA) id=(bi==='snow'&&y===SEA)?ICE:WATER;
       blocks[vidx(lx,y,lz)]=id; }
-    for(let y=2;y<h-1;y++){ const id=blocks[vidx(lx,y,lz)];
-      if(id!==STONE&&id!==DIRT&&id!==COAL_ORE&&id!==IRON_ORE) continue;
-      // tunnels = intersection de deux nappes de bruit 3D (~14% d'air, galeries connectées)
+    // grottes (tunnels = intersection de 2 nappes de bruit 3D)
+    for(let y=2;y<h-1;y++){ const id=blocks[vidx(lx,y,lz)]; if(id===AIR||id===BEDROCK) continue;
       const a=noise3(wx*0.05,y*0.07,wz*0.05), b=noise3(wx*0.05+71,y*0.07+19,wz*0.05+43);
-      if(a*a+b*b < 0.28) blocks[vidx(lx,y,lz)]=AIR;
-    }
-    // entrée de grotte : à des endroits clairsemés, si une grotte passe près du sol, on ouvre un puits jusqu'à la surface
+      if(a*a+b*b < 0.28) blocks[vidx(lx,y,lz)]=AIR; }
+    // entrée de grotte : puits jusqu'à la surface aux endroits clairsemés
     if(h>SEA+1 && perlin(wx*0.07+900,wz*0.07+900)>0.58){
       for(let y=h-1;y>3;y--){ if(blocks[vidx(lx,y,lz)]===AIR){ for(let yy=h;yy>y;yy--) blocks[vidx(lx,yy,lz)]=AIR; break; } }
     }
+    // décoration de surface (arbres, cactus, plantes)
     const top=blocks[vidx(lx,h,lz)];
-    if(h>SEA+1){
-      if(bi==='desert'){ if(top===SAND&&hash2(wx,wz)<0.02){ const ch=1+(hash2(wx*3,wz*3)*3|0); for(let i=1;i<=ch;i++) if(h+i<HEIGHT) blocks[vidx(lx,h+i,lz)]=CACTUS; } }
-      else if(top===GRASS||top===SNOW){ const dens=(bi==='forest')?0.07:(bi==='snow')?0.02:0.012; if(hash2(wx,wz)<dens) plantTree(blocks,lx,h+1,lz); }
+    if(h>SEA+1 && blocks[vidx(lx,h+1,lz)]===AIR){
+      if(bi==='desert'||bi==='mesa'){
+        if(top===SAND||top===RED_SAND){
+          if(hash2(wx,wz)<0.016){ const ch=1+(hash2(wx*3,wz*3)*3|0); for(let i=1;i<=ch;i++) if(h+i<HEIGHT) blocks[vidx(lx,h+i,lz)]=CACTUS; }
+          else if(hash2(wx*5+2,wz*5+2)<0.02) blocks[vidx(lx,h+1,lz)]=DEAD_BUSH;
+        }
+      } else if(top===GRASS||top===SNOW||top===PODZOL){
+        if(hash2(wx,wz)<treeDensity(bi)){ const tw=treeOf(bi,wx,wz); plantTree(blocks,lx,h+1,lz,tw[0],tw[1]); }
+        else { const r=hash2(wx*5+2,wz*5+2);
+          if(r<0.10) blocks[vidx(lx,h+1,lz)]=TALL_GRASS;
+          else if(r<0.125) blocks[vidx(lx,h+1,lz)]=FLOWER_RED;
+          else if(r<0.15) blocks[vidx(lx,h+1,lz)]=FLOWER_YELLOW;
+        }
+      }
     }
   }
   buildStructures(blocks,cx,cz);
@@ -405,7 +348,7 @@ function faceTile(id,f){ const d=BLOCKS[id]; return f===3?d.top:f===2?d.bottom:d
 function buildMesh(c){ computeLight(c);
   const op={pos:[],l3:[],uv:[],idx:[]},tr={pos:[],l3:[],uv:[],idx:[]},ox=c.x*CHUNK,oz=c.z*CHUNK,torchPos=[],decoPos=[];
   for(let y=0;y<HEIGHT;y++) for(let z=0;z<CHUNK;z++) for(let x=0;x<CHUNK;x++){ const id=c.blocks[vidx(x,y,z)]; if(id===AIR) continue;
-    if(BLOCKS[id].noCube){ if(id===TORCH) torchPos.push([x,y,z]); else decoPos.push([x,y,z,id]); continue; }
+    if(BLOCKS[id].noCube){ if(BLOCKS[id].deco==='torch') torchPos.push([x,y,z]); else decoPos.push([x,y,z,id]); continue; }
     const target=isTransparent(id)?tr:op;
     for(let f=0;f<6;f++){ const d=FACES[f].dir,nb=getBlock(ox+x+d[0],y+d[1],oz+z+d[2]); if(isOpaque(nb)||nb===id) continue;
       const [u0,v0,u1,v1]=tileUV(faceTile(id,f)),ls=sampleLight(x,y,z,d),fb=FACE_BRIGHT[f],base=target.pos.length/3;
@@ -415,7 +358,8 @@ function buildMesh(c){ computeLight(c);
   if(c.torchG){ scene.remove(c.torchG); } c.torchG=null;
   if(torchPos.length||decoPos.length){ const g=new THREE.Group();
     for(const [x,y,z] of torchPos) g.add(makeTorch(ox+x,y,oz+z));
-    for(const [x,y,z,id] of decoPos){ if(id===LADDER) g.add(makeLadder(ox+x,y,oz+z)); else g.add(makeDoor(ox+x,y,oz+z,id)); }
+    for(const [x,y,z,id] of decoPos){ const dc=BLOCKS[id].deco;
+      if(dc==='ladder') g.add(makeLadder(ox+x,y,oz+z)); else if(dc==='cross') g.add(makeCross(ox+x,y,oz+z,id)); else g.add(makeDoor(ox+x,y,oz+z,id)); }
     scene.add(g); c.torchG=g; }
   c.dirty=false; }
 function swapMesh(old,data,mat,ox,oz){ if(old){ scene.remove(old); old.geometry.dispose(); } if(data.pos.length===0) return null;
@@ -431,11 +375,13 @@ const doorMat=new THREE.MeshBasicMaterial({map:texture,transparent:true,alphaTes
 function tileQuad(tile,w,h){ const g=new THREE.PlaneGeometry(w,h),[u0,v0,u1,v1]=tileUV(tile),uv=g.attributes.uv;
   uv.setXY(0,u0,v1); uv.setXY(1,u1,v1); uv.setXY(2,u0,v0); uv.setXY(3,u1,v0); uv.needsUpdate=true; return g; }
 function uvAllFaces(g,tile){ const [u0,v0,u1,v1]=tileUV(tile),uv=g.attributes.uv; for(let f=0;f<6;f++){ const b=f*4; uv.setXY(b,u0,v1); uv.setXY(b+1,u1,v1); uv.setXY(b+2,u0,v0); uv.setXY(b+3,u1,v0); } uv.needsUpdate=true; return g; }
-function makeLadder(wx,y,wz){ const m=new THREE.Mesh(tileQuad(45,0.86,1.0),decoMat);
+function makeLadder(wx,y,wz){ const m=new THREE.Mesh(tileQuad(BLOCKS[LADDER].side,0.86,1.0),decoMat);
   const dirs=[[0,0,-1],[0,0,1],[-1,0,0],[1,0,0]]; let wall=[0,0,-1];
   for(const d of dirs){ if(isOpaque(getBlock(wx+d[0],y,wz+d[2]))){ wall=d; break; } }
   m.position.set(wx+0.5+wall[0]*0.45,y+0.5,wz+0.5+wall[2]*0.45); m.lookAt(m.position.x-wall[0],y+0.5,m.position.z-wall[2]); return m; }
-function makeDoor(wx,y,wz,id){ const below=getBlock(wx,y-1,wz),tile=(below===DOOR||below===DOOR_OPEN)?47:46;
+function makeCross(wx,y,wz,id){ const t=BLOCKS[id].side,g=new THREE.Group();
+  for(const a of [Math.PI/4,-Math.PI/4]){ const m=new THREE.Mesh(tileQuad(t,0.92,0.92),decoMat); m.position.set(wx+0.5,y+0.46,wz+0.5); m.rotation.y=a; g.add(m); } return g; }
+function makeDoor(wx,y,wz,id){ const below=getBlock(wx,y-1,wz),tile=isDoor(below)?BLOCKS[id].top:BLOCKS[id].side;
   const m=new THREE.Mesh(uvAllFaces(new THREE.BoxGeometry(0.92,1.0,0.16),tile),doorMat);
   const frameX=isOpaque(getBlock(wx-1,y,wz))||isOpaque(getBlock(wx+1,y,wz)),frameZ=isOpaque(getBlock(wx,y,wz-1))||isOpaque(getBlock(wx,y,wz+1));
   let rot=(frameZ&&!frameX)?Math.PI/2:0; if(id===DOOR_OPEN) rot+=Math.PI/2;
@@ -465,7 +411,7 @@ function collideY(amount){ player.pos.y+=amount; const minX=player.pos.x-HW,maxX
 function intersectsPlayer(bx,by,bz){ return bx<player.pos.x+HW&&bx+1>player.pos.x-HW&&by<player.pos.y+PH&&by+1>player.pos.y&&bz<player.pos.z+HW&&bz+1>player.pos.z-HW; }
 function groundUnder(){ const y=Math.floor(player.pos.y-0.06); for(let bx=Math.floor(player.pos.x-HW);bx<=Math.floor(player.pos.x+HW);bx++) for(let bz=Math.floor(player.pos.z-HW);bz<=Math.floor(player.pos.z+HW);bz++) if(isSolid(getBlock(bx,y,bz))) return true; return false; }
 function onLadderCheck(){ const y0=Math.floor(player.pos.y),y1=Math.floor(player.pos.y+PH-0.1);
-  for(let by=y0;by<=y1;by++) for(let bx=Math.floor(player.pos.x-HW);bx<=Math.floor(player.pos.x+HW);bx++) for(let bz=Math.floor(player.pos.z-HW);bz<=Math.floor(player.pos.z+HW);bz++) if(getBlock(bx,by,bz)===LADDER) return true; return false; }
+  for(let by=y0;by<=y1;by++) for(let bx=Math.floor(player.pos.x-HW);bx<=Math.floor(player.pos.x+HW);bx++) for(let bz=Math.floor(player.pos.z-HW);bz<=Math.floor(player.pos.z+HW);bz++){ const b=getBlock(bx,by,bz); if(BLOCKS[b]&&BLOCKS[b].climb) return true; } return false; }
 
 // ===================== INVENTAIRE / CRAFT / FOUR =====================
 function padTo(a,n){ const r=(a||[]).slice(0,n); while(r.length<n) r.push(null); return r; }
@@ -495,27 +441,7 @@ function renderHotbar(){ hotbarEl.innerHTML='';
     hotbarEl.appendChild(slot); } }
 function selectSlot(i){ selected=i; renderHotbar(); }
 
-const RECIPES=[
-  {result:{id:PLANKS,count:4},shapeless:[WOOD]},
-  {result:{id:STICK,count:4},shape:[[PLANKS],[PLANKS]]},
-  {result:{id:CRAFT_TABLE,count:1},shape:[[PLANKS,PLANKS],[PLANKS,PLANKS]]},
-  {result:{id:TORCH,count:4},shape:[[COAL],[STICK]]},
-  {result:{id:BRICK,count:2},shape:[[COBBLE,COBBLE],[COBBLE,COBBLE]]},
-  {result:{id:FURNACE,count:1},shape:[[COBBLE,COBBLE,COBBLE],[COBBLE,0,COBBLE],[COBBLE,COBBLE,COBBLE]]},
-  {result:{id:WOOD_PICK,count:1},shape:[[PLANKS,PLANKS,PLANKS],[0,STICK,0],[0,STICK,0]]},
-  {result:{id:WOOD_AXE,count:1},shape:[[PLANKS,PLANKS],[PLANKS,STICK],[0,STICK]]},
-  {result:{id:WOOD_SHOVEL,count:1},shape:[[PLANKS],[STICK],[STICK]]},
-  {result:{id:STONE_PICK,count:1},shape:[[COBBLE,COBBLE,COBBLE],[0,STICK,0],[0,STICK,0]]},
-  {result:{id:STONE_AXE,count:1},shape:[[COBBLE,COBBLE],[COBBLE,STICK],[0,STICK]]},
-  {result:{id:STONE_SHOVEL,count:1},shape:[[COBBLE],[STICK],[STICK]]},
-  {result:{id:IRON_PICK,count:1},shape:[[IRON_INGOT,IRON_INGOT,IRON_INGOT],[0,STICK,0],[0,STICK,0]]},
-  {result:{id:IRON_AXE,count:1},shape:[[IRON_INGOT,IRON_INGOT],[IRON_INGOT,STICK],[0,STICK]]},
-  {result:{id:IRON_SHOVEL,count:1},shape:[[IRON_INGOT],[STICK],[STICK]]},
-  {result:{id:BOOKSHELF,count:1},shape:[[PLANKS,PLANKS,PLANKS],[COAL,COAL,COAL],[PLANKS,PLANKS,PLANKS]]},
-  {result:{id:LADDER,count:3},shape:[[STICK,0,STICK],[STICK,STICK,STICK],[STICK,0,STICK]]},
-  {result:{id:DOOR,count:1},shape:[[PLANKS,PLANKS],[PLANKS,PLANKS],[PLANKS,PLANKS]]},
-  {result:{id:CHEST,count:1},shape:[[PLANKS,PLANKS,PLANKS],[PLANKS,0,PLANKS],[PLANKS,PLANKS,PLANKS]]},
-];
+// RECIPES est fourni par blocks.js (window.RECIPES) — modifie les recettes là-bas.
 function recipeFits(r,W){ if(r.shapeless) return true; if(r.shape.length>W) return false; for(const row of r.shape) if(row.length>W) return false; return true; }
 function availRecipes(){ return RECIPES.filter(r=>recipeFits(r,gridW)); }
 function gridPattern(cells,W){ const H=cells.length/W; let minR=99,maxR=-1,minC=99,maxC=-1;
@@ -751,12 +677,7 @@ const SFX={ dig:()=>noiseBurst(0.13,0.25,900), place:()=>noiseBurst(0.1,0.22,520
 
 // ---------- Minage / pose ----------
 let mouseLeft=false,mouseRight=false; const mining={key:null,t:0};
-function matOf(id){
-  if(id===STONE||id===COBBLE||id===COAL_ORE||id===IRON_ORE||id===BRICK||id===FURNACE||id===BEDROCK) return 'stone';
-  if(id===DIRT||id===GRASS) return 'dirt';
-  if(id===SAND) return 'sand'; if(id===SNOW) return 'snow'; if(id===GLASS) return 'glass';
-  if(id===LEAVES||id===CACTUS) return 'leaves'; return 'wood';
-}
+function matOf(id){ return (BLOCKS[id]&&BLOCKS[id].sound)||'wood'; }   // matériau sonore défini dans blocks.js
 function digSound(id){ switch(matOf(id)){
   case 'stone': noiseBurst(0.12,0.26,480); tone(100,0.08,'square',0.07,70); break;
   case 'dirt':  noiseBurst(0.14,0.24,280); tone(80,0.06,'sine',0.04,60); break;
@@ -789,7 +710,7 @@ function tryPlace(){ const slot=inv[selected]; if(!slot||slot.count<=0) return; 
   // échelle : peut se poser dans l'espace du joueur (non solide)
   const blocked=(pid===LADDER)?false:intersectsPlayer(px,py,pz);
   if((cur===AIR||cur===WATER)&&!blocked){ editBlock(px,py,pz,pid); placeSound(pid); heldSwing=1;
-    if((pid===SAND||pid===GRAVEL)){ const bl=getBlock(px,py-1,pz); if(bl===AIR||bl===WATER) startFall(px,py,pz,pid); }
+    if(BLOCKS[pid]&&BLOCKS[pid].fall){ const bl=getBlock(px,py-1,pz); if(bl===AIR||bl===WATER) startFall(px,py,pz,pid); }
     consumeHeld(); } }
 
 // ---------- Entrées ----------
@@ -810,7 +731,9 @@ addEventListener('mousemove',e=>{ if(invOpen){ lastMouse.x=e.clientX; lastMouse.
   if(document.pointerLockElement!==canvas) return; player.yaw-=e.movementX*mouseSens; player.pitch-=e.movementY*mouseSens; player.pitch=Math.max(-1.55,Math.min(1.55,player.pitch)); });
 addEventListener('mousedown',e=>{ if(document.pointerLockElement!==canvas) return; if(mode==='spectator') return;
   if(e.button===0){ const m=mobTarget(); if(m){ hitMob(m); heldSwing=1; } else mouseLeft=true; }
-  else if(e.button===2){ mouseRight=true; const hit=raycast(); if(hit){ const tb=getBlock(hit.x,hit.y,hit.z); if(tb===CRAFT_TABLE){ openInv(true); return; } if(tb===FURNACE){ openFurnace(); return; } if(tb===CHEST){ openChest(hit.x+','+hit.y+','+hit.z); return; } if(isDoor(tb)){ toggleDoor(hit.x,hit.y,hit.z); return; } } tryPlace(); } });
+  else if(e.button===2){ mouseRight=true; const hit=raycast(); if(hit){ const use=BLOCKS[getBlock(hit.x,hit.y,hit.z)]; if(use&&use.onUse){
+      if(use.onUse==='table'){ openInv(true); return; } if(use.onUse==='furnace'){ openFurnace(); return; }
+      if(use.onUse==='chest'){ openChest(hit.x+','+hit.y+','+hit.z); return; } if(use.onUse==='door'){ toggleDoor(hit.x,hit.y,hit.z); return; } } } tryPlace(); } });
 addEventListener('mouseup',e=>{ if(e.button===0){ mouseLeft=false; mining.key=null; breakBox.visible=false; } if(e.button===2){ mouseRight=false; player.eatT=0; } });
 addEventListener('contextmenu',e=>e.preventDefault());
 addEventListener('wheel',e=>{ if(document.pointerLockElement!==canvas) return; selectSlot((selected+(e.deltaY>0?1:-1)+9)%9); });
@@ -892,7 +815,7 @@ renderHotbar(); renderHUD();
 const $=id=>document.getElementById(id);
 function setMode(m){ mode=m; player.fly=(m!=='survival'); player.vel.y=0; if(m==='survival') player.fallStart=null; updateModeButtons(); saveNow(); }
 function updateModeButtons(){ for(const [m,id] of [['survival','modeSurv'],['creative','modeCrea'],['spectator','modeSpec']]) $(id) && $(id).classList.toggle('active',mode===m); }
-function refreshPauseInfo(){ const b=biomeAt(Math.floor(player.pos.x),Math.floor(player.pos.z)); const nm={plains:'Plaines',forest:'Forêt',desert:'Désert',snow:'Neige'}[b]||b;
+function refreshPauseInfo(){ const b=biomeAt(Math.floor(player.pos.x),Math.floor(player.pos.z)); const nm={plains:'Plaines',forest:'Forêt',desert:'Désert',snow:'Neige',taiga:'Taïga',jungle:'Jungle',savanna:'Savane',mesa:'Mesa',swamp:'Marais',mountains:'Montagnes'}[b]||b;
   $('biomeVal').textContent='🧭 '+nm+'  ·  X '+player.pos.x.toFixed(0)+' Y '+player.pos.y.toFixed(0)+' Z '+player.pos.z.toFixed(0); }
 
 $('wname').textContent=worldName;

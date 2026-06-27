@@ -13,7 +13,18 @@ const TILE_FILES = {
   32:'cooked_meat', 33:'iron_pickaxe', 34:'iron_shovel', 35:'iron_axe', 36:'snow',
   37:'gravel', 38:'cactus_side', 39:'cactus_top',
   40:'mossy_cobblestone', 41:'bookshelf_side', 42:'gold_ore', 43:'raw_gold', 44:'gold_ingot',
-  45:'ladder', 46:'door_lower', 47:'door_upper', 48:'chest_top', 49:'chest_side'
+  45:'ladder', 46:'door_lower', 47:'door_upper', 48:'chest_top', 49:'chest_side',
+  // ── v27 : nouveaux blocs & biomes ──
+  50:'andesite', 51:'granite', 52:'diorite', 53:'stone_bricks', 54:'obsidian',
+  55:'diamond_ore', 56:'emerald_ore', 57:'redstone_ore', 58:'lapis_ore',
+  59:'sandstone', 60:'red_sand', 61:'red_sandstone', 62:'terracotta',
+  63:'ice', 64:'packed_ice', 65:'podzol_top', 66:'coarse_dirt',
+  67:'birch_log_top', 68:'birch_log_side', 69:'birch_planks', 70:'birch_leaves',
+  71:'spruce_log_top', 72:'spruce_log_side', 73:'spruce_planks', 74:'spruce_leaves',
+  75:'jungle_log_top', 76:'jungle_log_side', 77:'jungle_planks', 78:'jungle_leaves',
+  79:'acacia_log_top', 80:'acacia_log_side', 81:'acacia_planks', 82:'acacia_leaves',
+  83:'tall_grass', 84:'flower_red', 85:'flower_yellow', 86:'dead_bush', 87:'glowstone',
+  88:'diamond', 89:'emerald', 90:'redstone', 91:'lapis', 92:'diamond_pickaxe', 93:'diamond_shovel', 94:'diamond_axe'
 };
 
 function lerp(a,b,t){ return a+t*(b-a); }
@@ -407,6 +418,53 @@ paint(49,(x,y)=>{
   if(Math.abs(x-T/2)<2&&Math.abs(y-T*0.58)<2) return [38,38,44]; // serrure
   return wood;
 });
+
+// ════════════════ v27 : nouveaux blocs & biomes ════════════════
+// roches
+paint(50,(x,y)=>{ const n=fn2(x/6,y/6,50),b=mix([136,138,142],[160,162,166],n); return h2(x,y,150)>0.85?[120,122,126]:b; });          // andésite
+paint(51,(x,y)=>{ const n=fn2(x/6,y/6,51),b=mix([168,120,104],[194,150,134],n); return h2(x,y,151)>0.8?[150,104,90]:b; });            // granite
+paint(52,(x,y)=>{ const n=fn2(x/6,y/6,52),b=mix([200,200,204],[230,230,234],n); return h2(x,y,152)>0.78?[172,172,178]:b; });          // diorite
+paint(53,(x,y)=>{ const row=Math.floor(y/8),off=(row%2)*8; if(y%8<2||(x+off)%16<2) return [96,98,102]; return mix([142,144,150],[120,122,128],fn2(x/5,y/5,53)); }); // pierre taillée
+paint(54,(x,y)=>{ const n=fn2(x/5,y/5,54),b=mix([28,24,40],[46,40,64],n); return h2(x,y,154)>0.82?[64,54,92]:b; });                    // obsidienne
+// minerais (pierre + pépites)
+function ore(seed,c1,c2,thr){ return (x,y)=>{ const s=mix([130,132,138],[160,162,168],fn2(x/8,y/8,4)); if(fn2(x/3.5,y/3.5,44)<0.13) return [s[0]-30,s[1]-30,s[2]-28]; return fn2(x/4+seed,y/4+(seed%5),seed+200)>thr?mix(c1,c2,fn2(x/3,y/3,seed+1)):s; }; }
+paint(55,ore(21,[100,228,232],[182,250,252],0.66));   // diamant
+paint(56,ore(33,[40,190,90],[100,232,150],0.68));     // émeraude
+paint(57,ore(13,[200,30,30],[240,72,60],0.64));       // redstone
+paint(58,ore(47,[40,70,200],[80,120,238],0.66));      // lapis
+// désert / mesa
+paint(59,(x,y)=>{ const n=fn2(x/9,y/5,59); if(y<3||y>=T-3) return [206,192,140]; return mix([224,212,162],[240,230,188],n); });       // grès
+paint(60,(x,y)=>mix([196,108,54],[224,136,76],fn2(x/8,y/8,60)));                                                                       // sable rouge
+paint(61,(x,y)=>{ const n=fn2(x/9,y/5,61); if(y<3||y>=T-3) return [160,84,40]; return mix([182,98,48],[208,122,68],n); });            // grès rouge
+paint(62,(x,y)=>{ const n=fn2(x/7,y/7,62),b=mix([164,96,66],[192,122,88],n); if(y%9<1) return [140,78,52]; return b; });              // terre cuite
+// froid
+paint(63,(x,y)=>{ const n=fn2(x/7,y/7,63),c=mix([150,196,230],[188,224,248],n); return [c[0],c[1],c[2],0.86]; });                     // glace
+paint(64,(x,y)=>mix([150,192,224],[180,214,240],fn2(x/7,y/7,64)));                                                                    // glace compacte
+// terres
+paint(65,(x,y)=>{ const n=fn2(x/6,y/6,65),b=mix([96,68,36],[126,94,54],n); return h2(x,y,165)>0.8?[78,108,46]:b; });                  // podzol (dessus)
+paint(66,(x,y)=>{ const n=fn2(x/6,y/6,66),b=mix([118,80,46],[150,106,62],n); return h2(x,y,166)>0.8?[92,62,36]:b; });                 // terre grossière
+// bois (4 essences) : log_top, log_side, planks, leaves
+function logTop(bark,core,s){ return (x,y)=>{ const dx=x-T/2,dy=y-T/2,d=Math.sqrt(dx*dx+dy*dy); if(d>15) return bark; const ring=Math.sin(d*0.9+fn2(x/14,y/14,s)*0.6)*0.5+0.5; return mix(core,[core[0]-26,core[1]-22,core[2]-16],ring*0.6); }; }
+function logSide(bark,dark,s){ return (x,y)=>{ const g=Math.sin(x*0.9+fn2(x/9,y/9,s)*2)*0.5+0.5; return mix(bark,dark,g*0.5); }; }
+function planksT(c1,c2,s){ return (x,y)=>{ const board=Math.floor(y/8); if(y%8<1) return [c2[0]-22,c2[1]-18,c2[2]-12]; if(((x+board*13)%16)<1) return [c2[0]-14,c2[1]-12,c2[2]-8]; return mix(c1,c2,fn2(x/12,y/4,s+board)*0.6); }; }
+function leavesT(c1,c2,s){ return (x,y)=>{ const n=fn2(x/4,y/4,s); if(n<0.18) return null; return mix(c1,c2,fn2(x/3,y/3,s+1)); }; }
+paint(67,logTop([224,226,216],[232,230,214],67)); paint(68,(x,y)=>{ const g=Math.sin(x*0.9+fn2(x/9,y/9,68)*2)*0.5+0.5,b=mix([226,228,218],[198,200,190],g*0.5); return h2(x>>2,y/6|0,168)>0.86?[70,70,64]:b; }); paint(69,planksT([214,198,150],[196,178,128],69)); paint(70,leavesT([120,170,70],[152,196,98],70)); // bouleau
+paint(71,logTop([70,52,34],[100,74,46],71)); paint(72,logSide([86,60,36],[58,40,24],72)); paint(73,planksT([110,82,52],[88,64,40],73)); paint(74,leavesT([40,86,58],[62,112,78],74)); // sapin
+paint(75,logTop([92,76,46],[122,100,60],75)); paint(76,logSide([108,86,50],[78,62,36],76)); paint(77,planksT([152,110,74],[126,90,58],77)); paint(78,leavesT([54,124,40],[82,160,58],78)); // jungle
+paint(79,logTop([96,90,82],[130,84,50],79)); paint(80,logSide([98,92,86],[70,66,60],80)); paint(81,planksT([188,110,60],[158,88,46],81)); paint(82,leavesT([108,150,52],[142,182,78],82)); // acacia
+// plantes (rendu en croix, fond transparent)
+paint(83,(x,y)=>{ for(const cx of [8,16,24]){ const w=2+(h2(cx,0,83)>0.5?1:0); if(Math.abs(x-cx)<=w && y>6+((h2(cx,1,83)*6)|0)) return mix([74,138,54],[112,182,82],fn2(x/3,y/3,83)); } return null; });      // herbe haute
+paint(84,(x,y)=>{ const cx=T/2; if(Math.abs(x-cx)<2&&y>15) return [60,120,46]; const dx=x-cx,dy=y-11,d=Math.sqrt(dx*dx+dy*dy); if(d<6) return d<2?[60,40,24]:mix([200,40,40],[238,84,72],fn2(x/3,y/3,84)); return null; }); // coquelicot
+paint(85,(x,y)=>{ const cx=T/2; if(Math.abs(x-cx)<2&&y>15) return [60,120,46]; const dx=x-cx,dy=y-12,d=Math.sqrt(dx*dx+dy*dy); if(d<5) return mix([240,210,40],[255,236,96],fn2(x/3,y/3,85)); return null; }); // pissenlit
+paint(86,(x,y)=>{ const cx=T/2; if(Math.abs(x-cx)<2&&y>10) return [120,84,44]; if(y>11&&y<16&&Math.abs(x-cx)<9&&((x+y)%3<1)) return [134,96,52]; if(y>15&&y<22&&Math.abs(x-cx)<7&&((x-y)%3<1)) return [120,84,44]; return null; }); // buisson mort
+paint(87,(x,y)=>{ const n=fn2(x/5,y/5,87),b=mix([180,150,70],[228,202,112],n); return h2(x,y,187)>0.7?[255,238,162]:b; });           // pierre lumineuse
+// objets
+function gem(c1,c2,s){ return (x,y)=>{ const dx=x-T/2,dy=y-T/2,d=(Math.abs(dx)+Math.abs(dy))/(T/2); if(d>0.85) return null; return mix(c1,c2,fn2(x/3,y/3,s)*(1-d*0.4)); }; }
+paint(88,gem([110,228,232],[182,250,252],88));   // diamant
+paint(89,gem([40,190,90],[112,236,152],89));     // émeraude
+paint(90,(x,y)=>{ const dx=x-T/2,dy=y-T/2,d=Math.sqrt(dx*dx+dy*dy)/14; if(d>1||h2(x,y,90)>0.5) return null; return mix([180,20,20],[238,64,52],fn2(x/2,y/2,90)); }); // redstone (poudre)
+paint(91,(x,y)=>{ const dx=x-T/2,dy=y-T/2,d=Math.sqrt(dx*dx+dy*dy)/14; if(d>1) return null; const n=fn2(x/3,y/3,91); return n>0.5?mix([40,70,200],[84,124,240],n):[30,50,150]; }); // lapis
+const DHEAD=[120,232,236]; paint(92,mkPick(DHEAD)); paint(93,mkShovel(DHEAD)); paint(94,mkAxe(DHEAD)); // outils diamant
 
 // ──────────────────────────────────────────────────────────────
 // Rendu 32×32 → downscale 16×16 → PNG
