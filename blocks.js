@@ -10,7 +10,7 @@ window.GameData = (function () {
     cobble:       { id:4,  name:'Pavé',             tex:'cobblestone',    hardness:1.3,  minedBy:'pick',   smeltTo:'stone', sound:'stone' },
     sand:         { id:5,  name:'Sable',            tex:'sand',           hardness:0.45, minedBy:'shovel', fall:true, smeltTo:'glass', sound:'sand' },
     wood:         { id:6,  name:'Bois',             tex:{top:'wood_top',side:'wood_side',bottom:'wood_top'}, hardness:0.7, minedBy:'axe', fuel:2, sound:'wood' },
-    leaves:       { id:7,  name:'Feuilles',         tex:'leaves',         hardness:0.2,  transparent:true, sound:'leaves' },
+    leaves:       { id:7,  name:'Feuilles',         tex:'leaves',         hardness:0.2,  transparent:true, cutout:true, sound:'leaves' },
     planks:       { id:8,  name:'Planches',         tex:'planks',         hardness:0.7,  minedBy:'axe',    fuel:2, sound:'wood' },
     water:        { id:9,  name:'Eau',              tex:'water',          hardness:9999, transparent:true, fluid:true, sound:'wood' },
     brick:        { id:10, name:'Brique',           tex:'brick',          hardness:1.3,  minedBy:'pick',   sound:'stone' },
@@ -55,16 +55,16 @@ window.GameData = (function () {
     // ── v27 : essences de bois ──
     birch_log:    { id:45, name:'Tronc de bouleau', tex:{top:'birch_log_top',side:'birch_log_side',bottom:'birch_log_top'}, hardness:0.7, minedBy:'axe', fuel:2, sound:'wood' },
     birch_planks: { id:46, name:'Planches de bouleau', tex:'birch_planks', hardness:0.7, minedBy:'axe', fuel:2, sound:'wood' },
-    birch_leaves: { id:47, name:'Feuilles de bouleau', tex:'birch_leaves', hardness:0.2, transparent:true, sound:'leaves' },
+    birch_leaves: { id:47, name:'Feuilles de bouleau', tex:'birch_leaves', hardness:0.2, transparent:true, cutout:true, sound:'leaves' },
     spruce_log:   { id:48, name:'Tronc de sapin',   tex:{top:'spruce_log_top',side:'spruce_log_side',bottom:'spruce_log_top'}, hardness:0.7, minedBy:'axe', fuel:2, sound:'wood' },
     spruce_planks:{ id:49, name:'Planches de sapin', tex:'spruce_planks', hardness:0.7, minedBy:'axe', fuel:2, sound:'wood' },
-    spruce_leaves:{ id:50, name:'Feuilles de sapin', tex:'spruce_leaves', hardness:0.2, transparent:true, sound:'leaves' },
+    spruce_leaves:{ id:50, name:'Feuilles de sapin', tex:'spruce_leaves', hardness:0.2, transparent:true, cutout:true, sound:'leaves' },
     jungle_log:   { id:51, name:'Tronc de jungle',  tex:{top:'jungle_log_top',side:'jungle_log_side',bottom:'jungle_log_top'}, hardness:0.7, minedBy:'axe', fuel:2, sound:'wood' },
     jungle_planks:{ id:52, name:'Planches de jungle', tex:'jungle_planks', hardness:0.7, minedBy:'axe', fuel:2, sound:'wood' },
-    jungle_leaves:{ id:53, name:'Feuilles de jungle', tex:'jungle_leaves', hardness:0.2, transparent:true, sound:'leaves' },
+    jungle_leaves:{ id:53, name:'Feuilles de jungle', tex:'jungle_leaves', hardness:0.2, transparent:true, cutout:true, sound:'leaves' },
     acacia_log:   { id:54, name:'Tronc d\'acacia',  tex:{top:'acacia_log_top',side:'acacia_log_side',bottom:'acacia_log_top'}, hardness:0.7, minedBy:'axe', fuel:2, sound:'wood' },
     acacia_planks:{ id:55, name:'Planches d\'acacia', tex:'acacia_planks', hardness:0.7, minedBy:'axe', fuel:2, sound:'wood' },
-    acacia_leaves:{ id:56, name:'Feuilles d\'acacia', tex:'acacia_leaves', hardness:0.2, transparent:true, sound:'leaves' },
+    acacia_leaves:{ id:56, name:'Feuilles d\'acacia', tex:'acacia_leaves', hardness:0.2, transparent:true, cutout:true, sound:'leaves' },
     // ── v27 : plantes (rendu en croix) ──
     tall_grass:   { id:57, name:'Herbe haute',      tex:'tall_grass',   hardness:0.05, transparent:true, noCube:true, deco:'cross', sound:'leaves' },
     flower_red:   { id:58, name:'Coquelicot',       tex:'flower_red',   hardness:0.05, transparent:true, noCube:true, deco:'cross', sound:'leaves' },
@@ -162,6 +162,7 @@ window.GameData = (function () {
     else if (d.tex){ side=tile(d.tex.side); top=d.tex.top!=null?tile(d.tex.top):side; bottom=d.tex.bottom!=null?tile(d.tex.bottom):side; }
     const b = { name:d.name, top, side, bottom, sound:d.sound||'wood' };
     if (d.transparent) b.transparent=true;
+    if (d.cutout)      b.cutout=true;
     if (d.noCube)      b.noCube=true;
     if (d.fluid)       b.fluid=true;
     if (d.light)       b.light=d.light;

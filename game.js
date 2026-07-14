@@ -41,7 +41,7 @@ function isSolid(id){ if(id===AIR) return false; const b=BLOCKS[id]; if(!b||b.fl
 // ---------- Atlas de textures ----------
 // Construit dynamiquement depuis TILE_FILES (défini par blocks.js d'après les noms de fichiers).
 // Chaque tuile est remplie par son PNG (window.TEX base64, sinon assets/<nom>.png).
-const TILE=16, ATLAS_TILES=window.ATLAS_TILES||8, ATLAS_PX=TILE*ATLAS_TILES;
+const TILE=32, ATLAS_TILES=window.ATLAS_TILES||8, ATLAS_PX=TILE*ATLAS_TILES;   // textures 32×32 (v30)
 const atlas=document.createElement('canvas'); atlas.width=atlas.height=ATLAS_PX;
 const actx=atlas.getContext('2d');
 actx.fillStyle='#c026c0'; actx.fillRect(0,0,ATLAS_PX,ATLAS_PX);   // magenta = texture manquante (le temps du chargement)
@@ -77,16 +77,58 @@ scene.background=SKY_DAY.clone(); scene.fog=new THREE.Fog(SKY_DAY.getHex(),(R-1.
 const camera=new THREE.PerspectiveCamera(FOV,innerWidth/innerHeight,0.1,1000); camera.rotation.order='YXZ';
 const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('game'),antialias:false,preserveDrawingBuffer:true});
 renderer.setSize(innerWidth,innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-const lightU={ map:{value:texture}, uSky:{value:1.0}, fogColor:{value:new THREE.Color(0x87ceeb)}, fogNear:{value:(R-1.5)*CHUNK}, fogFar:{value:R*CHUNK} };
-const VS=`attribute vec3 light3; varying vec2 vUv; varying vec3 vC; varying float vFog;
-void main(){ vUv=uv; vC=light3; vec4 mv=modelViewMatrix*vec4(position,1.0); vFog=-mv.z; gl_Position=projectionMatrix*mv; }`;
-const FS=`uniform sampler2D map; uniform float uSky; uniform vec3 fogColor; uniform float fogNear; uniform float fogFar;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;   // ombres portées douces
+// uniformes : fusionne les uniformes de lumière de Three (nécessaires aux ombres) + les nôtres
+const lightU=THREE.UniformsUtils.merge([THREE.UniformsLib.lights]);
+lightU.map={value:texture}; lightU.uSky={value:1.0};
+lightU.uSkyColor={value:new THREE.Color(1.0,0.97,0.88)};   // teinte de la lumière du ciel (heure)
+lightU.uBlockColor={value:new THREE.Color(1.0,0.72,0.40)}; // teinte chaude torches/glowstone
+lightU.uShadow={value:0.45};                               // force de l'ombre du soleil
+lightU.fogColor={value:new THREE.Color(0x87ceeb)}; lightU.fogNear={value:(R-1.5)*CHUNK}; lightU.fogFar={value:R*CHUNK};
+// vC = (ombrage_face×AO , ciel/15 , bloc/15)  — smooth lighting par sommet (buildMesh)
+const VS=`#include <common>
+#include <shadowmap_pars_vertex>
+attribute vec3 light3; varying vec2 vUv; varying vec3 vC; varying float vFog;
+void main(){ vUv=uv; vC=light3;
+  #include <beginnormal_vertex>
+  #include <defaultnormal_vertex>
+  #include <begin_vertex>
+  #include <project_vertex>
+  #include <worldpos_vertex>
+  #include <shadowmap_vertex>
+  vFog=-mvPosition.z; }`;
+function makeFS(cut){ return `#include <common>
+#include <packing>
+#include <shadowmap_pars_fragment>
+uniform sampler2D map; uniform float uSky; uniform vec3 uSkyColor; uniform vec3 uBlockColor; uniform float uShadow; uniform vec3 fogColor; uniform float fogNear; uniform float fogFar;
 varying vec2 vUv; varying vec3 vC; varying float vFog;
-void main(){ vec4 t=texture2D(map,vUv); float lvl=max(vC.y*uSky,vC.z); float bri=(0.08+0.92*clamp(lvl,0.0,1.0))*vC.x;
-  vec3 col=t.rgb*bri; float f=clamp((vFog-fogNear)/(fogFar-fogNear),0.0,1.0); col=mix(col,fogColor,f); gl_FragColor=vec4(col,t.a); }`;
-const matOpaque=new THREE.ShaderMaterial({uniforms:lightU,vertexShader:VS,fragmentShader:FS});
-const matWater=new THREE.ShaderMaterial({uniforms:lightU,vertexShader:VS,fragmentShader:FS,transparent:true,depthWrite:false,side:THREE.DoubleSide});
+void main(){ vec4 t=texture2D(map,vUv);
+  ${cut?'if(t.a<0.5) discard;':''}
+  float sh=1.0;
+  #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
+    DirectionalLightShadow dl=directionalLightShadows[0];
+    sh=getShadow(directionalShadowMap[0], dl.shadowMapSize, dl.shadowBias, dl.shadowRadius, vDirectionalShadowCoord[0]);
+  #endif
+  float sunVis=mix(1.0-uShadow,1.0,sh);          // zones à l'ombre : lumière du ciel réduite
+  vec3 skyL=vC.y*uSky*uSkyColor*sunVis;
+  vec3 blkL=vC.z*uBlockColor;
+  vec3 light=max(max(skyL,blkL),vec3(0.045));
+  vec3 col=t.rgb*light*vC.x;
+  float lum=dot(col,vec3(0.299,0.587,0.114));
+  col=mix(vec3(lum),col,1.25); col=col*1.06; col=col/(1.0+col*0.16); col=clamp(col,0.0,1.0);
+  float f=clamp((vFog-fogNear)/(fogFar-fogNear),0.0,1.0); col=mix(col,fogColor,f);
+  gl_FragColor=vec4(col, ${cut?'1.0':'t.a'}); }`; }
+const FS=makeFS(false), FS_CUT=makeFS(true);
+const matOpaque=new THREE.ShaderMaterial({uniforms:lightU,vertexShader:VS,fragmentShader:FS,lights:true});
+const matCutout=new THREE.ShaderMaterial({uniforms:lightU,vertexShader:VS,fragmentShader:FS_CUT,lights:true,side:THREE.DoubleSide});   // feuilles : alpha-cutout
+const matWater=new THREE.ShaderMaterial({uniforms:lightU,vertexShader:VS,fragmentShader:FS,lights:true,transparent:true,depthWrite:false,side:THREE.DoubleSide});
 const matItem=new THREE.MeshBasicMaterial({map:texture});
+// ---------- Soleil directionnel (ombres portées) ----------
+const sunLight=new THREE.DirectionalLight(0xffffff,1.0); sunLight.castShadow=true;
+sunLight.shadow.mapSize.set(2048,2048);
+{ const sc=sunLight.shadow.camera; sc.near=1; sc.far=240; sc.left=-80; sc.right=80; sc.top=80; sc.bottom=-80; sc.updateProjectionMatrix(); }
+sunLight.shadow.bias=-0.0004; sunLight.shadow.normalBias=0.45;
+scene.add(sunLight); scene.add(sunLight.target);
 const highlight=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.001,1.001,1.001)),new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:0.4}));
 highlight.visible=false; scene.add(highlight);
 const breakBox=new THREE.Mesh(new THREE.BoxGeometry(1.003,1.003,1.003),crackMats[0]); breakBox.visible=false; breakBox.renderOrder=2; scene.add(breakBox);
@@ -107,6 +149,17 @@ function cloudTex(){ const S=256,cv=document.createElement('canvas'); cv.width=c
 const cloudMesh=new THREE.Mesh(new THREE.PlaneGeometry(700,700),new THREE.MeshBasicMaterial({map:cloudTex(),transparent:true,depthWrite:false,opacity:0.8}));
 cloudMesh.rotation.x=-Math.PI/2; cloudMesh.renderOrder=-1; scene.add(cloudMesh);
 const SUNSET=new THREE.Color(0xff7a3c);
+// ---------- Dôme de ciel en dégradé (horizon → zénith) ----------
+const skyDomeMat=new THREE.ShaderMaterial({ side:THREE.BackSide, depthWrite:false, fog:false,
+  uniforms:{ topC:{value:new THREE.Color(0x2a6bd0)}, botC:{value:new THREE.Color(0xbfe0f5)} },
+  vertexShader:`varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`varying vec3 vDir; uniform vec3 topC; uniform vec3 botC;
+    void main(){ float t=clamp(vDir.y*0.5+0.5,0.0,1.0); t=pow(t,0.55); gl_FragColor=vec4(mix(botC,topC,t),1.0); }` });
+const skyDome=new THREE.Mesh(new THREE.SphereGeometry(480,24,16),skyDomeMat); skyDome.renderOrder=-3; scene.add(skyDome);
+const SKY_TOP_DAY=new THREE.Color(0x2f6fd6), SKY_BOT_DAY=new THREE.Color(0xc4e4f7);
+const SKY_TOP_NIGHT=new THREE.Color(0x05060f), SKY_BOT_NIGHT=new THREE.Color(0x10162e);
+const SKY_TOP_DUSK=new THREE.Color(0x3a2a6a), SKY_BOT_DUSK=new THREE.Color(0xff7a3c);
+const _stop=new THREE.Color(), _sbot=new THREE.Color();
 // matériau & géométries pour l'objet tenu en main (plein écran, toujours visible)
 const heldMat=new THREE.MeshBasicMaterial({map:texture,transparent:true,alphaTest:0.25,depthTest:false});
 const _heldCube={},_heldFlat={},_fullGeo={};
@@ -156,7 +209,8 @@ function setBlock(wx,wy,wz,id){ if(wy<0||wy>=HEIGHT) return; const cx=Math.floor
   markDirty(cx-1,cz-1); markDirty(cx+1,cz-1); markDirty(cx-1,cz+1); markDirty(cx+1,cz+1); }
 function editBlock(wx,wy,wz,id){ const prev=getBlock(wx,wy,wz); setBlock(wx,wy,wz,id);
   const cx=Math.floor(wx/CHUNK),cz=Math.floor(wz/CHUNK),k=ckey(cx,cz); (worldEdits[k]||(worldEdits[k]={}))[(wx-cx*CHUNK)+','+wy+','+(wz-cz*CHUNK)]=id;
-  const tk=wx+','+wy+','+wz; if(prev===TORCH) torches.delete(tk); if(id===TORCH) torches.add(tk);
+  const tk=wx+','+wy+','+wz; const wasLit=BLOCKS[prev]&&BLOCKS[prev].light, isLit=BLOCKS[id]&&BLOCKS[id].light;
+  if(wasLit) torches.delete(tk); if(isLit) torches.add(tk);
   if(id===AIR){ activateWater(wx,wy,wz); const ab=getBlock(wx,wy+1,wz); if(BLOCKS[ab]&&BLOCKS[ab].fall) startFall(wx,wy+1,wz,ab); }
   scheduleSave(); }
 
@@ -311,8 +365,8 @@ function genChunk(cx,cz){
   }
   buildStructures(blocks,cx,cz);
   const e=worldEdits[ckey(cx,cz)]; if(e) for(const k in e){ const a=k.split(','); blocks[vidx(+a[0],+a[1],+a[2])]=e[k]; }
-  for(let y=0;y<HEIGHT;y++) for(let z=0;z<CHUNK;z++) for(let x=0;x<CHUNK;x++) if(blocks[vidx(x,y,z)]===TORCH) torches.add((cx*CHUNK+x)+','+y+','+(cz*CHUNK+z));
-  const c={x:cx,z:cz,blocks,dirty:true,mesh:null,water:null,torchG:null}; chunks.set(ckey(cx,cz),c);
+  for(let y=0;y<HEIGHT;y++) for(let z=0;z<CHUNK;z++) for(let x=0;x<CHUNK;x++){ const b=blocks[vidx(x,y,z)]; if(BLOCKS[b]&&BLOCKS[b].light) torches.add((cx*CHUNK+x)+','+y+','+(cz*CHUNK+z)); }
+  const c={x:cx,z:cz,blocks,dirty:true,mesh:null,water:null,cut:null,torchG:null}; chunks.set(ckey(cx,cz),c);
   if(_villagerSpawns.length){ for(const v of _villagerSpawns) spawnVillagerNear(v[0],v[1],v[2]); _villagerSpawns.length=0; }
   markDirty(cx-1,cz); markDirty(cx+1,cz); markDirty(cx,cz-1); markDirty(cx,cz+1); return c;
 }
@@ -331,7 +385,8 @@ function computeLight(c){ const ox=c.x*CHUNK,oz=c.z*CHUNK,cache={};
   for(let px=0;px<PW;px++) for(let pz=0;pz<PW;pz++){ const wx=ox-M+px,wz=oz-M+pz; for(let y=HEIGHT-1;y>=0;y--){ if(isOpaque(blk(wx,y,wz))) break; const i=pidx(px,y,pz); lightSky[i]=15; lq[t1++]=i; } }
   prop(lightSky,t1);
   lightBlk.fill(0); let t2=0;
-  for(const t of torches){ const a=t.split(','),wx=+a[0],wy=+a[1],wz=+a[2],px=wx-(ox-M),pz=wz-(oz-M); if(px<0||px>=PW||pz<0||pz>=PW||wy<0||wy>=HEIGHT) continue; const i=pidx(px,wy,pz); if(lightBlk[i]<TORCH_LIGHT){ lightBlk[i]=TORCH_LIGHT; lq[t2++]=i; } }
+  for(const t of torches){ const a=t.split(','),wx=+a[0],wy=+a[1],wz=+a[2],px=wx-(ox-M),pz=wz-(oz-M); if(px<0||px>=PW||pz<0||pz>=PW||wy<0||wy>=HEIGHT) continue;
+    const lv=(BLOCKS[blk(wx,wy,wz)]&&BLOCKS[blk(wx,wy,wz)].light)||TORCH_LIGHT; const i=pidx(px,wy,pz); if(lightBlk[i]<lv){ lightBlk[i]=lv; lq[t2++]=i; } }
   prop(lightBlk,t2);
 }
 function sampleLight(lx,y,lz,d){ const ny=y+d[1]; if(ny<0) return [0,0]; if(ny>=HEIGHT) return [15,0]; const i=pidx(lx+d[0]+M,ny,lz+d[2]+M); return [lightSky[i],lightBlk[i]]; }
@@ -345,16 +400,32 @@ const FACES=[ {dir:[-1,0,0],corners:[[0,1,0,0,1],[0,0,0,0,0],[0,1,1,1,1],[0,0,1,
   {dir:[0,0,1],corners:[[0,0,1,0,0],[1,0,1,1,0],[0,1,1,0,1],[1,1,1,1,1]]} ];
 const FACE_BRIGHT=[0.6,0.6,0.5,1.0,0.8,0.8];
 function faceTile(id,f){ const d=BLOCKS[id]; return f===3?d.top:f===2?d.bottom:d.side; }
+// ── smooth lighting + occlusion ambiante ──
+const FACE_AX=FACES.map(F=>{ const d=F.dir,nax=d[0]?0:(d[1]?1:2),ts=[0,1,2].filter(a=>a!==nax); return {t1:ts[0],t2:ts[1]}; });
+const AO_LEVELS=[0.40,0.60,0.81,1.0];   // 0 = coin très occulté → 3 = dégagé
+function axVec(ax,s){ return ax===0?[s,0,0]:ax===1?[0,s,0]:[0,0,s]; }
+function skyAt(lx,ly,lz){ if(ly<0) return 0; if(ly>=HEIGHT) return 15; const px=lx+M,pz=lz+M; if(px<0||px>=PW||pz<0||pz>=PW) return 0; return lightSky[pidx(px,ly,pz)]; }
+function blkAt(lx,ly,lz){ if(ly<0||ly>=HEIGHT) return 0; const px=lx+M,pz=lz+M; if(px<0||px>=PW||pz<0||pz>=PW) return 0; return lightBlk[pidx(px,ly,pz)]; }
 function buildMesh(c){ computeLight(c);
-  const op={pos:[],l3:[],uv:[],idx:[]},tr={pos:[],l3:[],uv:[],idx:[]},ox=c.x*CHUNK,oz=c.z*CHUNK,torchPos=[],decoPos=[];
+  const op={pos:[],l3:[],uv:[],idx:[],nrm:[]},tr={pos:[],l3:[],uv:[],idx:[],nrm:[]},ct={pos:[],l3:[],uv:[],idx:[],nrm:[]},ox=c.x*CHUNK,oz=c.z*CHUNK,torchPos=[],decoPos=[];
   for(let y=0;y<HEIGHT;y++) for(let z=0;z<CHUNK;z++) for(let x=0;x<CHUNK;x++){ const id=c.blocks[vidx(x,y,z)]; if(id===AIR) continue;
     if(BLOCKS[id].noCube){ if(BLOCKS[id].deco==='torch') torchPos.push([x,y,z]); else decoPos.push([x,y,z,id]); continue; }
-    const target=isTransparent(id)?tr:op;
-    for(let f=0;f<6;f++){ const d=FACES[f].dir,nb=getBlock(ox+x+d[0],y+d[1],oz+z+d[2]); if(isOpaque(nb)||nb===id) continue;
-      const [u0,v0,u1,v1]=tileUV(faceTile(id,f)),ls=sampleLight(x,y,z,d),fb=FACE_BRIGHT[f],base=target.pos.length/3;
-      for(const cr of FACES[f].corners){ target.pos.push(x+cr[0],y+cr[1],z+cr[2]); target.l3.push(fb,ls[0]/15,ls[1]/15); target.uv.push(u0+cr[3]*(u1-u0),v0+cr[4]*(v1-v0)); }
+    const target=BLOCKS[id].cutout?ct:(isTransparent(id)?tr:op);
+    for(let f=0;f<6;f++){ const F=FACES[f],d=F.dir,nb=getBlock(ox+x+d[0],y+d[1],oz+z+d[2]); if(isOpaque(nb)||nb===id) continue;
+      const [u0,v0,u1,v1]=tileUV(faceTile(id,f)),fb=FACE_BRIGHT[f],t1=FACE_AX[f].t1,t2=FACE_AX[f].t2,base=target.pos.length/3;
+      const aLx=x+d[0],aLy=y+d[1],aLz=z+d[2],aWx=ox+aLx,aWz=oz+aLz;   // cellule d'air devant la face
+      for(const cr of F.corners){
+        const s1=cr[t1]?1:-1,s2=cr[t2]?1:-1,o1=axVec(t1,s1),o2=axVec(t2,s2);
+        const s1S=isOpaque(getBlock(aWx+o1[0],aLy+o1[1],aWz+o1[2])),s2S=isOpaque(getBlock(aWx+o2[0],aLy+o2[1],aWz+o2[2])),cS=isOpaque(getBlock(aWx+o1[0]+o2[0],aLy+o1[1]+o2[1],aWz+o1[2]+o2[2]));
+        let sky=skyAt(aLx,aLy,aLz),bl=blkAt(aLx,aLy,aLz),cnt=1;
+        if(!s1S){ sky+=skyAt(aLx+o1[0],aLy+o1[1],aLz+o1[2]); bl+=blkAt(aLx+o1[0],aLy+o1[1],aLz+o1[2]); cnt++; }
+        if(!s2S){ sky+=skyAt(aLx+o2[0],aLy+o2[1],aLz+o2[2]); bl+=blkAt(aLx+o2[0],aLy+o2[1],aLz+o2[2]); cnt++; }
+        if(!(s1S&&s2S)&&!cS){ sky+=skyAt(aLx+o1[0]+o2[0],aLy+o1[1]+o2[1],aLz+o1[2]+o2[2]); bl+=blkAt(aLx+o1[0]+o2[0],aLy+o1[1]+o2[1],aLz+o1[2]+o2[2]); cnt++; }
+        const ao=(s1S&&s2S)?0:(3-(s1S+s2S+cS)),shade=fb*AO_LEVELS[ao];
+        target.pos.push(x+cr[0],y+cr[1],z+cr[2]); target.l3.push(shade,(sky/cnt)/15,(bl/cnt)/15); target.uv.push(u0+cr[3]*(u1-u0),v0+cr[4]*(v1-v0)); target.nrm.push(d[0],d[1],d[2]);
+      }
       target.idx.push(base,base+1,base+2,base+2,base+1,base+3); } }
-  c.mesh=swapMesh(c.mesh,op,matOpaque,ox,oz); c.water=swapMesh(c.water,tr,matWater,ox,oz);
+  c.mesh=swapMesh(c.mesh,op,matOpaque,ox,oz,true,true); c.cut=swapMesh(c.cut,ct,matCutout,ox,oz,true,true); c.water=swapMesh(c.water,tr,matWater,ox,oz,false,true);
   if(c.torchG){ scene.remove(c.torchG); } c.torchG=null;
   if(torchPos.length||decoPos.length){ const g=new THREE.Group();
     for(const [x,y,z] of torchPos) g.add(makeTorch(ox+x,y,oz+z));
@@ -362,10 +433,11 @@ function buildMesh(c){ computeLight(c);
       if(dc==='ladder') g.add(makeLadder(ox+x,y,oz+z)); else if(dc==='cross') g.add(makeCross(ox+x,y,oz+z,id)); else g.add(makeDoor(ox+x,y,oz+z,id)); }
     scene.add(g); c.torchG=g; }
   c.dirty=false; }
-function swapMesh(old,data,mat,ox,oz){ if(old){ scene.remove(old); old.geometry.dispose(); } if(data.pos.length===0) return null;
+function swapMesh(old,data,mat,ox,oz,cast,recv){ if(old){ scene.remove(old); old.geometry.dispose(); } if(data.pos.length===0) return null;
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(data.pos,3));
   g.setAttribute('light3',new THREE.Float32BufferAttribute(data.l3,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(data.uv,2));
-  g.setIndex(data.idx); const m=new THREE.Mesh(g,mat); m.position.set(ox,0,oz); scene.add(m); return m; }
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(data.nrm,3));
+  g.setIndex(data.idx); const m=new THREE.Mesh(g,mat); m.position.set(ox,0,oz); m.castShadow=!!cast; m.receiveShadow=!!recv; scene.add(m); return m; }
 const _matStick=new THREE.MeshBasicMaterial({color:0x6b4a2b}),_matFlame=new THREE.MeshBasicMaterial({color:0xffcc44});
 const _stickGeo=new THREE.BoxGeometry(0.14,0.55,0.14),_flameGeo=new THREE.BoxGeometry(0.20,0.20,0.20);
 function makeTorch(wx,y,wz){ const g=new THREE.Group(); const s=new THREE.Mesh(_stickGeo,_matStick); s.position.set(wx+0.5,y+0.28,wz+0.5); g.add(s);
@@ -393,7 +465,7 @@ function updateChunks(){ const pcx=Math.floor(player.pos.x/CHUNK),pcz=Math.floor
   toGen.sort((a,b)=>a[0]-b[0]); for(let i=0;i<3&&i<toGen.length;i++) genChunk(toGen[i][1],toGen[i][2]);
   let toMesh=[]; for(const c of chunks.values()) if(c.dirty){ const dx=c.x-pcx,dz=c.z-pcz; toMesh.push([dx*dx+dz*dz,c]); }
   toMesh.sort((a,b)=>a[0]-b[0]); for(let i=0;i<3&&i<toMesh.length;i++) buildMesh(toMesh[i][1]);
-  for(const [k,c] of chunks){ if(Math.abs(c.x-pcx)>R+1||Math.abs(c.z-pcz)>R+1){ if(c.mesh){ scene.remove(c.mesh); c.mesh.geometry.dispose(); } if(c.water){ scene.remove(c.water); c.water.geometry.dispose(); } if(c.torchG){ scene.remove(c.torchG); } chunks.delete(k); } } }
+  for(const [k,c] of chunks){ if(Math.abs(c.x-pcx)>R+1||Math.abs(c.z-pcz)>R+1){ if(c.mesh){ scene.remove(c.mesh); c.mesh.geometry.dispose(); } if(c.cut){ scene.remove(c.cut); c.cut.geometry.dispose(); } if(c.water){ scene.remove(c.water); c.water.geometry.dispose(); } if(c.torchG){ scene.remove(c.torchG); } chunks.delete(k); } } }
 
 // ---------- Joueur & physique ----------
 const player={ pos:{x:8,y:40,z:8}, vel:{x:0,y:0,z:0}, yaw:0, pitch:0, onGround:false, fly:false,
@@ -751,15 +823,32 @@ function raycast(){ const o=camera.position; camera.getWorldDirection(_dir); con
   return null; }
 
 // ---------- Jour/nuit ----------
-let dayTime=(save.dayTime!=null)?save.dayTime:0.30; const DAY_LEN=180;
-function updateSky(dt){ dayTime=(dayTime+dt/DAY_LEN)%1; const s=Math.sin(dayTime*Math.PI*2),day=Math.max(0,s),skyLevel=4+11*day; skyDay=day;
-  lightU.uSky.value=skyLevel/15; scene.background.copy(SKY_NIGHT).lerp(SKY_DAY,day);
-  const horizon=Math.max(0,1-Math.abs(s)*3.2); if(horizon>0) scene.background.lerp(SUNSET,horizon*0.5);
+let dayTime=(save.dayTime!=null)?save.dayTime:0.30; const DAY_LEN=180; let _skyT=0;
+const C_LIGHT_DAY=new THREE.Color(1.0,0.97,0.88), C_LIGHT_NIGHT=new THREE.Color(0.34,0.45,0.80), C_LIGHT_DUSK=new THREE.Color(1.0,0.50,0.30), _skl=new THREE.Color();
+function updateSky(dt){ _skyT+=dt; dayTime=(dayTime+dt/DAY_LEN)%1;
+  const s=Math.sin(dayTime*Math.PI*2),day=Math.max(0,s),skyLevel=4+11*day,horizon=Math.max(0,1-Math.abs(s)*3.2); skyDay=day;
+  lightU.uSky.value=skyLevel/15;
+  // teinte de la lumière du ciel : nuit (bleu) → jour (blanc chaud), orangée au crépuscule
+  _skl.copy(C_LIGHT_NIGHT).lerp(C_LIGHT_DAY,day); if(horizon>0) _skl.lerp(C_LIGHT_DUSK,horizon*0.5); lightU.uSkyColor.value.copy(_skl);
+  // torches : chaudes + léger scintillement
+  lightU.uBlockColor.value.setRGB(1.0,0.74,0.43);   // lumière de bloc chaude, stable (plus de scintillement global)
+  const dl=0.30+0.70*day; decoMat.color.setScalar(dl); doorMat.color.setScalar(dl);   // déco (plantes/échelles/portes) suit le jour/nuit
+  // fond + brouillard
+  scene.background.copy(SKY_NIGHT).lerp(SKY_DAY,day); if(horizon>0) scene.background.lerp(SUNSET,horizon*0.5);
   scene.fog.color.copy(scene.background); lightU.fogColor.value.copy(scene.background);
+  // dôme de ciel dégradé
+  _stop.copy(SKY_TOP_NIGHT).lerp(SKY_TOP_DAY,day); _sbot.copy(SKY_BOT_NIGHT).lerp(SKY_BOT_DAY,day);
+  if(horizon>0){ _stop.lerp(SKY_TOP_DUSK,horizon*0.5); _sbot.lerp(SKY_BOT_DUSK,horizon*0.7); }
+  skyDomeMat.uniforms.topC.value.copy(_stop); skyDomeMat.uniforms.botC.value.copy(_sbot);
+  const px=player.pos.x,py=player.pos.y,pz=player.pos.z; skyDome.position.set(px,py,pz);
   // astres + nuages suivent le joueur
-  const ang=(dayTime-0.25)*Math.PI*2,D=300,dx=Math.sin(ang),dy=Math.cos(ang),px=player.pos.x,py=player.pos.y,pz=player.pos.z;
+  const ang=(dayTime-0.25)*Math.PI*2,D=300,dx=Math.sin(ang),dy=Math.cos(ang);
   sunMesh.position.set(px+dx*D,py+dy*D,pz); sunMesh.lookAt(px,py,pz);
   moonMesh.position.set(px-dx*D,py-dy*D,pz); moonMesh.lookAt(px,py,pz);
+  // lumière directionnelle (ombres) : suit l'astre au-dessus de l'horizon
+  const up=(s>=0)?1:-1, slx=dx*up, sly=Math.max(0.25,dy*up);
+  sunLight.position.set(px+slx*130, py+sly*150, pz+0.001); sunLight.target.position.set(px,py,pz);
+  lightU.uShadow.value=0.06+0.46*day;   // ombres marquées le jour, douces (lune) la nuit
   cloudMesh.position.set(px,HEIGHT+24,pz); cloudMesh.material.map.offset.x=(cloudMesh.material.map.offset.x+dt*0.003)%1; cloudMesh.material.opacity=0.2+0.62*day; }
 
 // ---------- Vie / faim ----------
